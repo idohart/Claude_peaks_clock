@@ -97,5 +97,16 @@
       "Confirm it installs dependencies, runs npm run check, and smoke-tests /api/promotions"
     ],
     "passes": true
+  },
+  {
+    "id": 10,
+    "priority": "high",
+    "description": "A Netlify production deploy serves the frontend and the promotions backend from the same domain so /api/promotions does not 404 in production.",
+    "verify": [
+      "Deploy the current repository to Netlify",
+      "Request /api/promotions from the Netlify domain",
+      "Confirm the dashboard loads live promotion data instead of showing a 404 API error"
+    ],
+    "passes": false
   }
 ]

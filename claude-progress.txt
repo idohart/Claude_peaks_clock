@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 0
+# Sessions since last maintenance: 1
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -42,3 +42,9 @@
 - Added a GitHub Actions workflow that runs lint/build checks and smoke-tests the backend promotions API on push and pull request
 - Prepared the repository for publication on GitHub and pushed the current app state to the remote repository
 - Tested: npm run check, direct API response validation, and CI workflow definition review
+
+## Session 7
+- Investigated the live Netlify deploy and confirmed the frontend was published without a backend, leaving `/api/promotions` returning 404 in production
+- Added Netlify Functions and redirect rules so the existing promotions backend can run on Netlify under the same domain
+- Updated project docs and tracking for the Netlify production path
+- Next: push the Netlify function changes, wait for deploy completion, and re-verify the live site

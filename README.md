@@ -20,6 +20,10 @@ That starts:
 - the API on `http://127.0.0.1:8787`
 - the Vite app on its default local port with `/api` proxied to the backend
 
+## Netlify Deploy
+
+The repository includes [netlify.toml](/c:/ido%20harti/Script/claude%20promotion%20times/netlify.toml) and Netlify Functions under `netlify/functions/` so `/api/promotions` and `/api/health` work on a static Netlify deploy. Netlify should build with `npm run build`, publish `dist`, and serve the backend through the function redirects.
+
 ## Verify
 
 ```bash
