@@ -118,6 +118,9 @@ export interface ClockStatus {
   officialLabel: string;
   officialTone: 'peak' | 'off_peak' | 'inactive';
   officialDetail: string;
+  currentPhaseLabel: string;
+  currentPhaseTone: 'peak' | 'off_peak';
+  currentPhaseDetail: string;
   patternLabel: string;
   patternUsage: number;
   patternTone: 'peak' | 'moderate' | 'off_peak';

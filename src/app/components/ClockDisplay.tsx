@@ -24,6 +24,7 @@ export function ClockDisplay({ currentTime, status, sourceLabel, timezone }: Clo
       : status.patternTone === 'moderate'
         ? '#c4a1ff'
         : '#4ade80';
+  const currentPhaseColor = status.currentPhaseTone === 'peak' ? '#e05252' : '#4ade80';
 
   return (
     <div className="h-full rounded-lg bg-[#111118] border border-white/[0.06] p-6 flex flex-col justify-between">
@@ -74,6 +75,18 @@ export function ClockDisplay({ currentTime, status, sourceLabel, timezone }: Clo
                 </p>
                 <p className="text-[11px] text-[#6b6b80]">{status.officialDetail}</p>
               </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-start gap-2">
+            <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
+              Off-Peak Now
+            </span>
+            <div>
+              <p className="text-xs font-['JetBrains_Mono']" style={{ color: currentPhaseColor }}>
+                {status.currentPhaseLabel}
+              </p>
+              <p className="text-[11px] text-[#6b6b80]">{status.currentPhaseDetail}</p>
             </div>
           </div>
 

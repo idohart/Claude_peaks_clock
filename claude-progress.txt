@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 4
+# Sessions since last maintenance: 5
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -66,3 +66,8 @@
 - Removed the old full-screen loading page, removed outbound Claude Help Center links from the runtime UI, and made the app shell consistently left-aligned with explicit LTR direction
 - Kept the near-term off-peak estimate as a heuristic only and validated that it now points to later today while the next peak points to tomorrow
 - Tested: npm run check and direct forecast inspection showing next off-peak at 18:00 UTC on 02 Apr 2026 and next peak at 12:00 UTC on 03 Apr 2026
+
+## Session 11
+- Added an explicit 'Off-Peak Now' answer to the clock panel so users do not need to infer the current phase from the forecast cards
+- Wired the current-phase answer to use the official live window when one exists and otherwise fall back to the current historical phase estimate
+- Tested: npm run check and direct dashboard-model inspection showing the clock currently reports 'No, Likely Peak Now' outside an official promotion

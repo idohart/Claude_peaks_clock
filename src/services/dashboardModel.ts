@@ -251,6 +251,7 @@ export function buildDashboardModel(
   const currentBucket = patternMatrix[now.weekday - 1][now.hour];
   const currentTotal = currentBucket.peak + currentBucket.offPeak;
   const currentUsage = currentTotal === 0 ? 0 : Math.round((currentBucket.peak / currentTotal) * 100);
+  const inferredCurrentPhaseTone: 'peak' | 'off_peak' = currentUsage >= 60 ? 'peak' : 'off_peak';
   const patternTone = getPatternTone(currentUsage);
   const activeOfficialWindow = snapshot.windows.find((window) => {
     const startedAtUtc = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' });
@@ -263,6 +264,9 @@ export function buildDashboardModel(
         officialLabel: `${getPhaseLabel(activeOfficialWindow.phase)} Window`,
         officialTone: activeOfficialWindow.phase,
         officialDetail: 'Official promotion live now',
+        currentPhaseLabel: activeOfficialWindow.phase === 'off_peak' ? 'Yes, Off-Peak Now' : 'No, Peak Now',
+        currentPhaseTone: activeOfficialWindow.phase,
+        currentPhaseDetail: 'Taken from the current official published window',
         patternLabel: `${getPatternLabel(patternTone)} pattern`,
         patternUsage: currentUsage,
         patternTone,
@@ -271,6 +275,9 @@ export function buildDashboardModel(
         officialLabel: 'No Promotion Live',
         officialTone: 'inactive' as const,
         officialDetail: 'Current signal below is historical, not live Claude telemetry',
+        currentPhaseLabel: currentUsage >= 60 ? 'No, Likely Peak Now' : 'Yes, Likely Off-Peak Now',
+        currentPhaseTone: inferredCurrentPhaseTone,
+        currentPhaseDetail: 'Estimated from the current historical day-of-week and hour pattern',
         patternLabel: `${getPatternLabel(patternTone)} pattern`,
         patternUsage: currentUsage,
         patternTone,

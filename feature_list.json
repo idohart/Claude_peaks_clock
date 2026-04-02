@@ -141,5 +141,16 @@
       "Confirm the next peak card points to a future peak start when the current local time is already inside a peak-pattern block"
     ],
     "passes": true
+  },
+  {
+    "id": 14,
+    "priority": "medium",
+    "description": "The clock explicitly states whether the app considers the current hour off-peak or not, using official live windows when available and the current inferred phase otherwise.",
+    "verify": [
+      "Open the clock panel",
+      "Confirm it shows an 'Off-Peak Now' yes/no answer",
+      "Confirm the detail explains whether the answer comes from an official live window or from the current historical pattern"
+    ],
+    "passes": true
   }
 ]
