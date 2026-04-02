@@ -117,7 +117,7 @@ export function PredictionPanel({ forecast }: PredictionPanelProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ForecastMiniCard forecast={forecast.nextPeak} title="Next Peak Return" />
-        <ForecastMiniCard forecast={forecast.campaign} title="Campaign Forecast" />
+        <ForecastMiniCard forecast={forecast.campaign} title="Next Public Promo Campaign" />
       </div>
 
       <div className="space-y-3">

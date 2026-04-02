@@ -108,5 +108,16 @@
       "Confirm the dashboard loads live promotion data instead of showing a 404 API error"
     ],
     "passes": true
+  },
+  {
+    "id": 11,
+    "priority": "high",
+    "description": "Near-term peak and off-peak forecasts are based on the next few days of hourly historical pattern probabilities, not delayed until the next estimated public promotion campaign.",
+    "verify": [
+      "Request the promotion snapshot outside an active official campaign",
+      "Confirm nextOffPeak and nextPeak fall within the next few hours or days when the historical pattern supports it",
+      "Confirm the campaign forecast remains separate as a long-range public promotion estimate"
+    ],
+    "passes": true
   }
 ]

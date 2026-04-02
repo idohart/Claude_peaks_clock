@@ -792,22 +792,18 @@ function findOfficialPhaseForecast(
   };
 }
 
-function inferPhaseForecast(
-  campaignForecast: NonNullable<PromotionForecast['campaign']>,
+const PATTERN_FORECAST_HORIZON_HOURS = 7 * 24;
+
+function inferNearTermPhaseForecast(
   model: PhaseProbabilityModel,
   holidayDates: Set<string>,
   phase: PromotionPhase,
   nowUtc: DateTime,
 ): PromotionForecast['nextOffPeak'] {
-  if (!campaignForecast.endsAtUtc) {
-    return null;
-  }
+  const horizonEnd = nowUtc.plus({ hours: PATTERN_FORECAST_HORIZON_HOURS }).startOf('hour');
+  let cursor = nowUtc.startOf('hour');
 
-  const campaignStart = DateTime.fromISO(campaignForecast.startsAtUtc, { zone: 'utc' });
-  const campaignEnd = DateTime.fromISO(campaignForecast.endsAtUtc, { zone: 'utc' });
-  let cursor = (nowUtc > campaignStart ? nowUtc : campaignStart).startOf('hour');
-
-  while (cursor < campaignEnd) {
+  while (cursor < horizonEnd) {
     const currentScores = getPhaseScores(model, cursor, holidayDates);
     const dominantPhase = currentScores.offPeak >= currentScores.peak ? 'off_peak' : 'peak';
 
@@ -819,7 +815,7 @@ function inferPhaseForecast(
       let supportTotal = 0;
       let samples = 0;
 
-      while (runEnd < campaignEnd) {
+      while (runEnd < horizonEnd) {
         const runScores = getPhaseScores(model, runEnd, holidayDates);
         const runDominantPhase = runScores.offPeak >= runScores.peak ? 'off_peak' : 'peak';
         if (runDominantPhase !== phase) {
@@ -839,19 +835,19 @@ function inferPhaseForecast(
       const averageMargin = samples > 0 ? marginTotal / samples : 0;
       const averageSupport = samples > 0 ? supportTotal / samples : 0;
       const confidence = clamp(
-        campaignForecast.confidence * (0.55 + averageScore * 0.2 + averageMargin * 0.35 + averageSupport * 0.1),
-        0.15,
-        0.8,
+        0.2 + averageScore * 0.2 + averageMargin * 0.3 + averageSupport * 0.2,
+        0.2,
+        0.72,
       );
 
       return {
         kind: 'historical_inference',
         phase,
-        startsAtUtc: runStart.toUTC().toISO() ?? runStart.toString(),
+        startsAtUtc: (runStart <= nowUtc ? nowUtc : runStart).toUTC().toISO() ?? runStart.toString(),
         endsAtUtc: runEnd.toUTC().toISO() ?? runEnd.toString(),
         confidence,
-        explanation: `Inferred from weekday and hour patterns inside previous official ${getPhaseLabel(phase)} windows.`,
-        basis: 'Estimated campaign window plus ET day-of-week, weekend, hour, and US public holiday phase probabilities',
+        explanation: `Near-term estimate from historical weekday and hour patterns seen in previous official ${getPhaseLabel(phase)} windows.`,
+        basis: 'ET day-of-week, weekend, hour, and US public holiday probabilities over the next 7 days; not an official published schedule',
       };
     }
 
@@ -868,11 +864,13 @@ function buildForecast(
   nowUtc: DateTime,
 ): PromotionForecast | null {
   const campaignForecast = buildCampaignForecast(campaigns, nowUtc);
-  if (!campaignForecast) {
+  if (!campaignForecast && windows.length === 0) {
     return null;
   }
 
-  if (campaignForecast.kind === 'official_campaign') {
+  const model = buildPhaseProbabilityModel(campaigns, windows, holidayDates);
+
+  if (campaignForecast?.kind === 'official_campaign') {
     const activeCampaignIds = new Set(
       campaigns
         .filter((campaign) => {
@@ -890,12 +888,10 @@ function buildForecast(
     };
   }
 
-  const model = buildPhaseProbabilityModel(campaigns, windows, holidayDates);
-
   return {
     campaign: campaignForecast,
-    nextOffPeak: inferPhaseForecast(campaignForecast, model, holidayDates, 'off_peak', nowUtc),
-    nextPeak: inferPhaseForecast(campaignForecast, model, holidayDates, 'peak', nowUtc),
+    nextOffPeak: inferNearTermPhaseForecast(model, holidayDates, 'off_peak', nowUtc),
+    nextPeak: inferNearTermPhaseForecast(model, holidayDates, 'peak', nowUtc),
   };
 }
 

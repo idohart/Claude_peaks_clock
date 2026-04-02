@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 1
+# Sessions since last maintenance: 2
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -48,3 +48,9 @@
 - Added Netlify Functions and redirect rules so the existing promotions backend can run on Netlify under the same domain
 - Updated project docs and tracking for the Netlify production path
 - Tested: npm run check, direct local Netlify function invocation, live `https://claudeclock.netlify.app/api/promotions`, and live browser render after deploy
+
+## Session 8
+- Fixed a forecast-design bug where near-term peak and off-peak estimates were incorrectly delayed until the next estimated public promotion campaign
+- Changed the hourly phase forecaster to search the next 7 days directly from the historical day-of-week and hour model, while keeping the public campaign estimate as a separate long-range signal
+- Clarified the forecast panel label so the long-range card reads as the next public promotion campaign rather than another hourly pressure estimate
+- Tested: direct snapshot inspection showing next peak is current/immediate and next off-peak is later the same day, plus npm run check
