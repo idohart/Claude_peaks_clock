@@ -13,8 +13,6 @@ import type {
   WeeklyHeatmapCell,
 } from '../types/promotion';
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
 interface HourAccumulator {
   peak: number;
   offPeak: number;
@@ -52,30 +50,85 @@ function buildHourlyMatrix(windows: PromotionWindow[], zone: string): HourAccumu
   return matrix;
 }
 
-function buildUsageHours(matrix: HourAccumulator[][], weekdayIndex: number): UsageHourPoint[] {
-  return matrix[weekdayIndex].map((bucket, hour) => {
+function buildUsageHours(dayBuckets: HourAccumulator[]): UsageHourPoint[] {
+  return dayBuckets.map((bucket, hour) => {
     const total = bucket.peak + bucket.offPeak;
-    const usage = total === 0 ? 0 : Math.round((bucket.peak / total) * 100);
+    const hasData = total > 0;
+    const usage = hasData ? Math.round((bucket.peak / total) * 100) : 0;
 
     return {
       hour,
       label: shortHourLabel(hour),
       usage,
+      hasData,
       isPeak: usage >= 60,
     };
   });
 }
 
-function buildHeatmap(matrix: HourAccumulator[][]): WeeklyHeatmapCell[][] {
-  return matrix.map((row, dayIndex) =>
-    row.map((bucket, hour) => {
+function buildRangeBuckets(
+  windows: PromotionWindow[],
+  zone: string,
+  rangeStart: DateTime,
+  dayCount: number,
+): Array<{ day: DateTime; buckets: HourAccumulator[] }> {
+  const days = Array.from({ length: dayCount }, (_, index) => ({
+    day: rangeStart.plus({ days: index }),
+    buckets: Array.from({ length: 24 }, () => ({ peak: 0, offPeak: 0 })),
+  }));
+  const dayMap = new Map(days.map((entry) => [entry.day.toISODate(), entry]));
+  const rangeEnd = rangeStart.plus({ days: dayCount });
+
+  for (const window of windows) {
+    const startedAt = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' }).setZone(zone);
+    const endedAt = DateTime.fromISO(window.endedAtUtc, { zone: 'utc' }).setZone(zone);
+    const effectiveStart = startedAt < rangeStart ? rangeStart : startedAt;
+    const effectiveEnd = endedAt > rangeEnd ? rangeEnd : endedAt;
+
+    if (effectiveEnd <= effectiveStart) {
+      continue;
+    }
+
+    let cursor = effectiveStart.startOf('hour');
+    while (cursor < effectiveEnd) {
+      const nextCursor = cursor.plus({ hours: 1 });
+      const activeStart = effectiveStart > cursor ? effectiveStart : cursor;
+      const activeEnd = effectiveEnd < nextCursor ? effectiveEnd : nextCursor;
+      const overlapHours = activeEnd.diff(activeStart, 'minutes').minutes / 60;
+
+      if (overlapHours > 0) {
+        const key = cursor.toISODate();
+        const targetDay = key ? dayMap.get(key) : undefined;
+        if (targetDay) {
+          const bucket = targetDay.buckets[cursor.hour];
+          if (window.phase === 'peak') {
+            bucket.peak += overlapHours;
+          } else {
+            bucket.offPeak += overlapHours;
+          }
+        }
+      }
+
+      cursor = nextCursor;
+    }
+  }
+
+  return days;
+}
+
+function buildHeatmap(days: Array<{ day: DateTime; buckets: HourAccumulator[] }>): WeeklyHeatmapCell[][] {
+  return days.map(({ day, buckets }) =>
+    buckets.map((bucket, hour) => {
       const total = bucket.peak + bucket.offPeak;
-      const usage = total === 0 ? 0 : Math.round((bucket.peak / total) * 100);
+      const hasData = total > 0;
+      const usage = hasData ? Math.round((bucket.peak / total) * 100) : 0;
 
       return {
-        dayLabel: DAYS[dayIndex],
+        dayLabel: day.toFormat('ccc'),
+        dateLabel: day.toFormat('dd LLL'),
         hour,
         usage,
+        hasData,
       };
     }),
   );
@@ -191,10 +244,13 @@ export function buildDashboardModel(
 ): DashboardViewModel {
   const now = DateTime.fromMillis(nowMillis).setZone(zone);
   const nowUtc = now.toUTC();
-  const matrix = buildHourlyMatrix(snapshot.windows, zone);
-  const todayUsage = buildUsageHours(matrix, now.weekday - 1);
-  const weeklyHeatmap = buildHeatmap(matrix);
-  const currentUsage = todayUsage[now.hour]?.usage ?? 0;
+  const patternMatrix = buildHourlyMatrix(snapshot.windows, zone);
+  const recentDays = buildRangeBuckets(snapshot.windows, zone, now.startOf('day').minus({ days: 6 }), 7);
+  const todayUsage = buildUsageHours(recentDays[recentDays.length - 1].buckets);
+  const weeklyHeatmap = buildHeatmap(recentDays);
+  const currentBucket = patternMatrix[now.weekday - 1][now.hour];
+  const currentTotal = currentBucket.peak + currentBucket.offPeak;
+  const currentUsage = currentTotal === 0 ? 0 : Math.round((currentBucket.peak / currentTotal) * 100);
   const patternTone = getPatternTone(currentUsage);
   const activeOfficialWindow = snapshot.windows.find((window) => {
     const startedAtUtc = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' });
@@ -234,7 +290,7 @@ export function buildDashboardModel(
           ? `${startedAt.toFormat('HH:mm')} -> ${endedAt.toFormat('ccc HH:mm')}`
           : `${startedAt.toFormat('HH:mm')} -> ${endedAt.toFormat('HH:mm')}`,
         day: startedAt.toFormat('ccc'),
-        usage: usageForWindowStart(matrix, startedAt),
+        usage: usageForWindowStart(patternMatrix, startedAt),
         duration: formatDuration(Math.round(endedAt.diff(startedAt, 'minutes').minutes)),
         reason: window.label,
         phase: window.phase,

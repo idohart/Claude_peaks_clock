@@ -36,11 +36,19 @@ export function UsageChart({ data }: UsageChartProps) {
     return `rgb(${r},${g},${b})`;
   };
 
+  const getDisplayColor = (usage: number, hasData: boolean) => {
+    if (!hasData) {
+      return 'rgba(107,107,128,0.35)';
+    }
+
+    return getBarColor(usage);
+  };
+
   return (
     <div className="rounded-lg bg-[#111118] border border-white/[0.06] p-6">
       <div className="flex items-center justify-between mb-6">
         <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
-          Today&apos;s Pressure Index
+          Today&apos;s Official Timeline
         </span>
         <div className="flex items-center gap-5 text-xs">
           <span className="flex items-center gap-2">
@@ -76,8 +84,14 @@ export function UsageChart({ data }: UsageChartProps) {
               active && payload?.length ? (
                 <div className="bg-[#1a1a24] border border-white/10 rounded px-3 py-2 font-['JetBrains_Mono'] text-xs">
                   <p className="text-[#e2e2e8]">{payload[0].payload.label}</p>
-                  <p className="text-[#c4a1ff]">{payload[0].payload.usage}%</p>
-                  <p className="text-[#6b6b80]">{payload[0].payload.isPeak ? 'Peak' : 'Off-Peak'}</p>
+                  {payload[0].payload.hasData ? (
+                    <>
+                      <p className="text-[#c4a1ff]">{payload[0].payload.usage}%</p>
+                      <p className="text-[#6b6b80]">{payload[0].payload.isPeak ? 'Peak' : 'Off-Peak'}</p>
+                    </>
+                  ) : (
+                    <p className="text-[#6b6b80]">No official data for this hour</p>
+                  )}
                 </div>
               ) : null
             }
@@ -87,8 +101,8 @@ export function UsageChart({ data }: UsageChartProps) {
           <Bar dataKey="usage" radius={[3, 3, 0, 0]}>
             {data.map((entry) => (
               <Cell
-                fill={entry.hour === currentHour ? '#c4a1ff' : getBarColor(entry.usage)}
-                fillOpacity={entry.hour === currentHour ? 1 : 0.8}
+                fill={entry.hour === currentHour && entry.hasData ? '#c4a1ff' : getDisplayColor(entry.usage, entry.hasData)}
+                fillOpacity={entry.hour === currentHour && entry.hasData ? 1 : 0.8}
                 key={entry.label}
               />
             ))}
@@ -96,7 +110,7 @@ export function UsageChart({ data }: UsageChartProps) {
         </BarChart>
       </ResponsiveContainer>
       <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] mt-3 text-center">
-        Dashed line marks 60% peak threshold | Highlighted bar is current hour
+        Official published windows only | Dashed line marks 60% peak threshold | Highlighted bar is current hour when official data exists
       </p>
     </div>
   );

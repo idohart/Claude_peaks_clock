@@ -119,5 +119,16 @@
       "Confirm the campaign forecast remains separate as a long-range public promotion estimate"
     ],
     "passes": true
+  },
+  {
+    "id": 12,
+    "priority": "high",
+    "description": "The chart and heatmap use real official window data only and display a rolling 7-day range ending today instead of a fixed Monday-to-Sunday aggregate.",
+    "verify": [
+      "Build the dashboard model for a current date outside an active promotion",
+      "Confirm the last heatmap row is today and earlier rows step backward by calendar day",
+      "Confirm hours without official window coverage are marked as no-data rather than shown as inferred off-peak values"
+    ],
+    "passes": true
   }
 ]

@@ -26,18 +26,30 @@ export function WeeklyHeatmap({ data }: WeeklyHeatmapProps) {
     return `rgba(${r},${g},${b},${0.75 + t * 0.25})`;
   };
 
+  const getDisplayColor = (usage: number, hasData: boolean) => {
+    if (!hasData) {
+      return 'rgba(107,107,128,0.18)';
+    }
+
+    return getColor(usage);
+  };
+
   return (
     <div className="rounded-lg bg-[#111118] border border-white/[0.06] p-6">
       <div className="flex items-center justify-between mb-6">
         <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
-          Weekly Heatmap
+          Last 7 Days
         </span>
         {hoveredCell ? (
           <span className="text-xs font-['JetBrains_Mono'] text-[#e2e2e8]">
-            {hoveredCell.dayLabel} {hoveredCell.hour.toString().padStart(2, '0')}:00
-            <span className="ml-2" style={{ color: getColor(hoveredCell.usage) }}>
-              {hoveredCell.usage}%
-            </span>
+            {hoveredCell.dayLabel} {hoveredCell.dateLabel} {hoveredCell.hour.toString().padStart(2, '0')}:00
+            {hoveredCell.hasData ? (
+              <span className="ml-2" style={{ color: getColor(hoveredCell.usage) }}>
+                {hoveredCell.usage}%
+              </span>
+            ) : (
+              <span className="ml-2 text-[#6b6b80]">No official data</span>
+            )}
           </span>
         ) : null}
       </div>
@@ -63,8 +75,8 @@ export function WeeklyHeatmap({ data }: WeeklyHeatmapProps) {
 
           {data.map((dayData, index) => (
             <div className="flex items-center mb-1" key={dayData[0]?.dayLabel ?? `day-${index}`}>
-              <div className="w-12 md:w-16 text-xs font-['JetBrains_Mono'] text-[#6b6b80] flex-shrink-0">
-                {dayData[0]?.dayLabel ?? ''}
+              <div className="w-20 md:w-24 text-xs font-['JetBrains_Mono'] text-[#6b6b80] flex-shrink-0">
+                {dayData[0] ? `${dayData[0].dayLabel} ${dayData[0].dateLabel}` : ''}
               </div>
               <div className="flex-1 flex gap-[2px]">
                 {dayData.map((hourData) => (
@@ -73,7 +85,7 @@ export function WeeklyHeatmap({ data }: WeeklyHeatmapProps) {
                     key={`${hourData.dayLabel}-${hourData.hour}`}
                     onMouseEnter={() => setHoveredCell(hourData)}
                     onMouseLeave={() => setHoveredCell(null)}
-                    style={{ backgroundColor: getColor(hourData.usage) }}
+                    style={{ backgroundColor: getDisplayColor(hourData.usage, hourData.hasData) }}
                   />
                 ))}
               </div>
@@ -92,6 +104,9 @@ export function WeeklyHeatmap({ data }: WeeklyHeatmapProps) {
         />
         <span>100%</span>
       </div>
+      <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] mt-3 text-center">
+        Real official windows only, ordered from 6 days ago to today
+      </p>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 2
+# Sessions since last maintenance: 3
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -54,3 +54,9 @@
 - Changed the hourly phase forecaster to search the next 7 days directly from the historical day-of-week and hour model, while keeping the public campaign estimate as a separate long-range signal
 - Clarified the forecast panel label so the long-range card reads as the next public promotion campaign rather than another hourly pressure estimate
 - Tested: direct snapshot inspection showing next peak is current/immediate and next off-peak is later the same day, plus npm run check
+
+## Session 9
+- Rebuilt the bar chart and heatmap to use only real official window data instead of the old all-history weekday aggregate
+- Changed the heatmap ordering to a rolling 7-day calendar range ending on today, so it no longer forces a Monday-to-Sunday layout
+- Added explicit no-data handling for hours and days without official window coverage so empty periods do not read as real off-peak signals
+- Tested: npm run check and direct dashboard-model inspection confirming the range now runs from 27 Mar through 02 Apr with today last

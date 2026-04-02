@@ -77,13 +77,16 @@ export interface UsageHourPoint {
   hour: number;
   label: string;
   usage: number;
+  hasData: boolean;
   isPeak: boolean;
 }
 
 export interface WeeklyHeatmapCell {
   dayLabel: string;
+  dateLabel: string;
   hour: number;
   usage: number;
+  hasData: boolean;
 }
 
 export interface ForecastTransitionViewModel {
