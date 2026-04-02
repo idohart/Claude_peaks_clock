@@ -47,4 +47,4 @@
 - Investigated the live Netlify deploy and confirmed the frontend was published without a backend, leaving `/api/promotions` returning 404 in production
 - Added Netlify Functions and redirect rules so the existing promotions backend can run on Netlify under the same domain
 - Updated project docs and tracking for the Netlify production path
-- Next: push the Netlify function changes, wait for deploy completion, and re-verify the live site
+- Tested: npm run check, direct local Netlify function invocation, live `https://claudeclock.netlify.app/api/promotions`, and live browser render after deploy

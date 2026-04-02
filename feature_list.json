@@ -107,6 +107,6 @@
       "Request /api/promotions from the Netlify domain",
       "Confirm the dashboard loads live promotion data instead of showing a 404 API error"
     ],
-    "passes": false
+    "passes": true
   }
 ]
