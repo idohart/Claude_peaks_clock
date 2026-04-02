@@ -1,0 +1,46 @@
+[
+  {
+    "id": 1,
+    "priority": "high",
+    "description": "User can open a browser dashboard that auto-detects the viewer timezone and shows a live local Claude promotion clock.",
+    "verify": [
+      "Run the app",
+      "Open the dashboard in a browser",
+      "Confirm the timezone label matches the browser timezone",
+      "Confirm the live clock and countdown update without a refresh"
+    ],
+    "passes": true
+  },
+  {
+    "id": 2,
+    "priority": "high",
+    "description": "User can see an infographic of historical peak and off-peak windows converted into the viewer timezone.",
+    "verify": [
+      "Open the dashboard",
+      "Inspect the weekly matrix and history timeline",
+      "Confirm each window is labeled as peak or off-peak and shown in local time"
+    ],
+    "passes": true
+  },
+  {
+    "id": 3,
+    "priority": "high",
+    "description": "User can see a forecasted next promotion start that is computed from the observed historical pattern rather than hard-coded.",
+    "verify": [
+      "Open the dashboard",
+      "Inspect the forecast card",
+      "Confirm the estimate includes a timestamp, confidence score, and supporting rationale"
+    ],
+    "passes": true
+  },
+  {
+    "id": 4,
+    "priority": "medium",
+    "description": "Developer can replace the seeded history with their own observations without rewriting the UI.",
+    "verify": [
+      "Open the data file referenced in the docs",
+      "Confirm the history schema is documented in code and isolated from UI code"
+    ],
+    "passes": true
+  }
+]

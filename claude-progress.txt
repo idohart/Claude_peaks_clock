@@ -1,0 +1,12 @@
+# Project: Claude Promotion Clock
+# Started: 2026-04-02
+# Sessions since last maintenance: 0
+
+## Session 1
+- Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
+- Implemented: timezone-aware React dashboard with live clock, forecast card, daily signal strip, weekly heatmap, and historical timeline infographic
+- Files changed: package.json, src/, docs/, feature_list.json, claude-progress.txt
+- Tested: npm run check, production build, local HTTP 200 probe from the dev server
+- Harness improvements: added README and Windows-friendly init/check scripts
+- Next: replace demo history with real observations or connect a live telemetry source
+- Issues: there is no official Anthropic promotions feed in the repo, so the current forecast is explicitly dataset-driven
