@@ -1,4 +1,8 @@
-import type { ForecastViewModel } from '../../types/promotion';
+import type {
+  CampaignForecastViewModel,
+  ForecastTransitionViewModel,
+  ForecastViewModel,
+} from '../../types/promotion';
 
 interface PredictionPanelProps {
   forecast: ForecastViewModel | null;
@@ -27,35 +31,71 @@ function countdownParts(countdown: string): { days: string; hours: string; minut
   };
 }
 
-export function PredictionPanel({ forecast }: PredictionPanelProps) {
+function ForecastMiniCard({
+  title,
+  forecast,
+}: {
+  title: string;
+  forecast: ForecastTransitionViewModel | CampaignForecastViewModel | null;
+}) {
   if (!forecast) {
     return (
-      <div className="h-full rounded-lg bg-[#111118] border border-white/[0.06] p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
-            Next Optimal Window
-          </span>
-        </div>
-        <p className="text-[#6b6b80]">Not enough official campaign history to build an estimate yet.</p>
+      <div className="rounded-md bg-[#0a0a0f] border border-white/[0.04] p-4">
+        <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">{title}</p>
+        <p className="text-[#6b6b80]/70 text-sm mt-3">No prediction available in the current forecast range.</p>
       </div>
     );
   }
 
-  const parts = countdownParts(forecast.countdown);
   const [dateLabel, timeLabel] = forecast.label.split('|').map((part) => part.trim());
+
+  return (
+    <div className="rounded-md bg-[#0a0a0f] border border-white/[0.04] p-4 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">{title}</p>
+        <span className="text-[10px] font-['JetBrains_Mono'] uppercase tracking-wider text-[#c4a1ff] bg-[#c4a1ff]/10 px-2 py-0.5 rounded">
+          {Math.round(forecast.confidence * 100)}%
+        </span>
+      </div>
+      <div>
+        <p className="text-[#e2e2e8] font-['JetBrains_Mono'] text-sm">{dateLabel}</p>
+        <p className="text-[#c4a1ff] font-['JetBrains_Mono'] text-lg">{timeLabel ?? ''}</p>
+      </div>
+      <p className="text-[#6b6b80]/70 text-xs font-['JetBrains_Mono']">{forecast.kindLabel}</p>
+    </div>
+  );
+}
+
+export function PredictionPanel({ forecast }: PredictionPanelProps) {
+  if (!forecast?.nextOffPeak) {
+    return (
+      <div className="h-full rounded-lg bg-[#111118] border border-white/[0.06] p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
+            Forecast Windows
+          </span>
+        </div>
+        <p className="text-[#6b6b80]">Not enough official campaign history to build an hourly estimate yet.</p>
+      </div>
+    );
+  }
+
+  const primary = forecast.nextOffPeak;
+  const parts = countdownParts(primary.countdown);
+  const [dateLabel, timeLabel] = primary.label.split('|').map((part) => part.trim());
 
   return (
     <div className="h-full rounded-lg bg-[#111118] border border-white/[0.06] p-6 space-y-6">
       <div className="flex items-center justify-between">
         <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
-          Next Optimal Window
+          Next Off-Peak Window
         </span>
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-['JetBrains_Mono'] uppercase tracking-wider text-[#4ade80] bg-[#4ade80]/10 px-2 py-0.5 rounded">
-            {forecast.kindLabel}
+            {primary.kindLabel}
           </span>
           <span className="text-[10px] font-['JetBrains_Mono'] uppercase tracking-wider text-[#c4a1ff] bg-[#c4a1ff]/10 px-2 py-0.5 rounded">
-            {Math.round(forecast.confidence * 100)}% confidence
+            {Math.round(primary.confidence * 100)}% confidence
           </span>
         </div>
       </div>
@@ -75,9 +115,14 @@ export function PredictionPanel({ forecast }: PredictionPanelProps) {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <ForecastMiniCard forecast={forecast.nextPeak} title="Next Peak Return" />
+        <ForecastMiniCard forecast={forecast.campaign} title="Campaign Forecast" />
+      </div>
+
       <div className="space-y-3">
-        <p className="text-[#6b6b80] text-sm border-l-2 border-[#c4a1ff]/30 pl-3">{forecast.reason}</p>
-        <p className="text-[#6b6b80]/70 text-xs font-['JetBrains_Mono']">{forecast.basis}</p>
+        <p className="text-[#6b6b80] text-sm border-l-2 border-[#c4a1ff]/30 pl-3">{primary.reason}</p>
+        <p className="text-[#6b6b80]/70 text-xs font-['JetBrains_Mono']">{primary.basis}</p>
       </div>
     </div>
   );

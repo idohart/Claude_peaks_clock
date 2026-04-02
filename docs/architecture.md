@@ -1,7 +1,7 @@
 # Architecture
 
 ## Purpose
-The app is a web-backed dashboard. An Express service scrapes official Claude Help Center promotion pages, normalizes them into UTC campaign windows, and the React client converts those windows into the viewer's timezone for a real-time dashboard.
+The app is a web-backed dashboard. An Express service scrapes official Claude Help Center promotion pages, normalizes them into UTC campaign windows, derives campaign-level and hour-level forecasts, and the React client converts those windows into the viewer's timezone for a real-time dashboard.
 
 ## Layers
 `src/types` -> shared contracts only
@@ -30,6 +30,6 @@ The app is a web-backed dashboard. An Express service scrapes official Claude He
 ## Constraints
 Import boundaries are enforced in `check.sh`.
 
-Any claim about "next promotion" must be produced from official published campaign history in code, not a hard-coded date string in UI components.
+Any claim about "next promotion", "next off-peak", or "next peak" must be produced from official published campaign history in code, not a hard-coded date string in UI components.
 
 Timezone formatting must be performed in the service or helper layers so UI code stays declarative.

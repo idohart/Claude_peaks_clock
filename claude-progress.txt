@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 1
+# Sessions since last maintenance: 2
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -17,3 +17,9 @@
 - Normalized official promotion articles into campaign and peak/off-peak window records, then localized them in the browser for the clock, charts, heatmap, and history timeline
 - Tested: npm run check, direct tsx snapshot fetch, and HTTP endpoint probe after fixing the Express 5 SPA fallback
 - Current estimate quality: real computation over official campaign history, but intentionally low confidence because only a small number of published campaigns are available
+
+## Session 3
+- Extended the forecast model from campaign-only estimation to hourly phase inference for both next off-peak and next peak windows
+- Kept exact official windows whenever a promotion is active, and only fall back to history-based inference when the campaign itself is estimated
+- Added an ET weekday/hour probability model over historical official windows and surfaced the new signals in the forecast panel
+- Tested: npm run check and direct snapshot inspection showing campaign, nextOffPeak, and nextPeak forecast outputs

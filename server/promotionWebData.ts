@@ -4,6 +4,7 @@ import { DateTime } from 'luxon';
 import type {
   PromotionCampaign,
   PromotionForecast,
+  PromotionPhase,
   PromotionSnapshotResponse,
   PromotionWindow,
 } from '../src/types/promotion';
@@ -33,6 +34,18 @@ interface ParsedCampaignBundle {
 interface CachedSnapshot {
   expiresAt: number;
   snapshot: PromotionSnapshotResponse;
+}
+
+interface PhaseProbabilityModel {
+  offPeakBySlot: number[][];
+  peakBySlot: number[][];
+  slotSupport: number[][];
+  offPeakByHour: number[];
+  peakByHour: number[];
+  hourSupport: number[];
+  offPeakGlobal: number;
+  peakGlobal: number;
+  totalWeight: number;
 }
 
 let cachedSnapshot: CachedSnapshot | null = null;
@@ -174,6 +187,39 @@ function buildCampaign(title: string, sourceUrl: string, summary: string, starts
     updatedAtUtc,
     scheduleSummary,
   };
+}
+
+function createDayHourMatrix(): number[][] {
+  return Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
+}
+
+function createHourArray(): number[] {
+  return Array.from({ length: 24 }, () => 0);
+}
+
+function forEachOverlappingHour(
+  startedAt: DateTime,
+  endedAt: DateTime,
+  visitor: (cursor: DateTime, overlapHours: number) => void,
+): void {
+  let cursor = startedAt.startOf('hour');
+
+  while (cursor < endedAt) {
+    const nextCursor = cursor.plus({ hours: 1 });
+    const activeStart = startedAt > cursor ? startedAt : cursor;
+    const activeEnd = endedAt < nextCursor ? endedAt : nextCursor;
+    const overlapHours = activeEnd.diff(activeStart, 'minutes').minutes / 60;
+
+    if (overlapHours > 0) {
+      visitor(cursor, overlapHours);
+    }
+
+    cursor = nextCursor;
+  }
+}
+
+function getPhaseLabel(phase: PromotionPhase): string {
+  return phase === 'off_peak' ? 'Off-Peak' : 'Peak';
 }
 
 function expandWindows(campaign: PromotionCampaign, rule: ScheduleRule): PromotionWindow[] {
@@ -347,42 +393,37 @@ function parsePromotionArticle(sourceUrl: string, html: string): ParsedCampaignB
   throw new Error(`Unsupported promotion article shape: ${article.title}`);
 }
 
-function buildForecast(campaigns: PromotionCampaign[], windows: PromotionWindow[], nowUtc: DateTime): PromotionForecast | null {
+function buildCampaignForecast(
+  campaigns: PromotionCampaign[],
+  nowUtc: DateTime,
+): PromotionForecast['campaign'] {
   const sortedCampaigns = [...campaigns].sort((left, right) => left.startsAtUtc.localeCompare(right.startsAtUtc));
-  const activeCampaignIds = new Set(
-    sortedCampaigns
-      .filter((campaign) => {
-        const start = DateTime.fromISO(campaign.startsAtUtc, { zone: 'utc' });
-        const end = DateTime.fromISO(campaign.endsAtUtc, { zone: 'utc' });
-        return nowUtc >= start && nowUtc <= end;
-      })
-      .map((campaign) => campaign.id),
-  );
+  const activeCampaigns = sortedCampaigns.filter((campaign) => {
+    const start = DateTime.fromISO(campaign.startsAtUtc, { zone: 'utc' });
+    const end = DateTime.fromISO(campaign.endsAtUtc, { zone: 'utc' });
+    return nowUtc >= start && nowUtc <= end;
+  });
 
-  if (activeCampaignIds.size > 0) {
-    const currentOrNextWindow = [...windows]
-      .filter((window) => window.phase === 'off_peak' && activeCampaignIds.has(window.campaignId))
-      .sort((left, right) => left.startedAtUtc.localeCompare(right.startedAtUtc))
-      .find((window) => DateTime.fromISO(window.endedAtUtc, { zone: 'utc' }) >= nowUtc);
-
-    if (currentOrNextWindow) {
-      return {
-        kind: 'official_window',
-        startsAtUtc: currentOrNextWindow.startedAtUtc,
-        endsAtUtc: currentOrNextWindow.endedAtUtc,
-        confidence: 0.95,
-        explanation: 'Taken directly from an active official Claude promotion schedule.',
-        basis: 'Current Claude Help Center promotion window',
-        matchedCampaigns: activeCampaignIds.size,
-      };
-    }
+  if (activeCampaigns.length > 0) {
+    const activeCampaign = activeCampaigns[0];
+    return {
+      kind: 'official_campaign',
+      startsAtUtc: activeCampaign.startsAtUtc,
+      endsAtUtc: activeCampaign.endsAtUtc,
+      confidence: 0.95,
+      explanation: 'Taken directly from an active official Claude promotion campaign.',
+      basis: 'Current Claude Help Center promotion campaign',
+      matchedCampaigns: activeCampaigns.length,
+    };
   }
 
   if (sortedCampaigns.length < 2) {
     return null;
   }
 
-  const startTimes = sortedCampaigns.map((campaign) => DateTime.fromISO(campaign.startsAtUtc, { zone: 'utc' }).toMillis());
+  const startTimes = sortedCampaigns.map((campaign) =>
+    DateTime.fromISO(campaign.startsAtUtc, { zone: 'utc' }).toMillis(),
+  );
   const durations = sortedCampaigns.map((campaign) => {
     const start = DateTime.fromISO(campaign.startsAtUtc, { zone: 'utc' });
     const end = DateTime.fromISO(campaign.endsAtUtc, { zone: 'utc' });
@@ -406,6 +447,289 @@ function buildForecast(campaigns: PromotionCampaign[], windows: PromotionWindow[
     explanation: 'Estimated from the spacing between official Claude usage promotions discovered on support.claude.com.',
     basis: `Average gap of ${Math.round(averageInterval / (1000 * 60 * 60 * 24))} days between published campaigns`,
     matchedCampaigns: sortedCampaigns.length,
+  };
+}
+
+function buildPhaseProbabilityModel(
+  campaigns: PromotionCampaign[],
+  windows: PromotionWindow[],
+): PhaseProbabilityModel {
+  const canonicalZone = 'America/New_York';
+  const sortedCampaigns = [...campaigns].sort((left, right) => left.startsAtUtc.localeCompare(right.startsAtUtc));
+  const offPeakBySlot = createDayHourMatrix();
+  const peakBySlot = createDayHourMatrix();
+  const slotSupport = createDayHourMatrix();
+  const offPeakByHour = createHourArray();
+  const peakByHour = createHourArray();
+  const hourSupport = createHourArray();
+  let offPeakGlobal = 0;
+  let peakGlobal = 0;
+  let globalSupport = 0;
+  let totalWeight = 0;
+
+  sortedCampaigns.forEach((campaign, index) => {
+    const weight = index + 1;
+    const totalBySlot = createDayHourMatrix();
+    const offPeakHoursBySlot = createDayHourMatrix();
+    const peakHoursBySlot = createDayHourMatrix();
+    const totalByHour = createHourArray();
+    const offPeakHoursByHour = createHourArray();
+    const peakHoursByHour = createHourArray();
+    let totalHours = 0;
+    let totalOffPeakHours = 0;
+    let totalPeakHours = 0;
+
+    windows
+      .filter((window) => window.campaignId === campaign.id)
+      .forEach((window) => {
+        const startedAt = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' }).setZone(canonicalZone);
+        const endedAt = DateTime.fromISO(window.endedAtUtc, { zone: 'utc' }).setZone(canonicalZone);
+
+        forEachOverlappingHour(startedAt, endedAt, (cursor, overlapHours) => {
+          const dayIndex = cursor.weekday - 1;
+          const hour = cursor.hour;
+
+          totalBySlot[dayIndex][hour] += overlapHours;
+          totalByHour[hour] += overlapHours;
+          totalHours += overlapHours;
+
+          if (window.phase === 'off_peak') {
+            offPeakHoursBySlot[dayIndex][hour] += overlapHours;
+            offPeakHoursByHour[hour] += overlapHours;
+            totalOffPeakHours += overlapHours;
+          } else {
+            peakHoursBySlot[dayIndex][hour] += overlapHours;
+            peakHoursByHour[hour] += overlapHours;
+            totalPeakHours += overlapHours;
+          }
+        });
+      });
+
+    if (totalHours === 0) {
+      return;
+    }
+
+    totalWeight += weight;
+    offPeakGlobal += (totalOffPeakHours / totalHours) * weight;
+    peakGlobal += (totalPeakHours / totalHours) * weight;
+    globalSupport += weight;
+
+    for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+      for (let hour = 0; hour < 24; hour += 1) {
+        if (totalBySlot[dayIndex][hour] === 0) {
+          continue;
+        }
+
+        offPeakBySlot[dayIndex][hour] +=
+          (offPeakHoursBySlot[dayIndex][hour] / totalBySlot[dayIndex][hour]) * weight;
+        peakBySlot[dayIndex][hour] +=
+          (peakHoursBySlot[dayIndex][hour] / totalBySlot[dayIndex][hour]) * weight;
+        slotSupport[dayIndex][hour] += weight;
+      }
+    }
+
+    for (let hour = 0; hour < 24; hour += 1) {
+      if (totalByHour[hour] === 0) {
+        continue;
+      }
+
+      offPeakByHour[hour] += (offPeakHoursByHour[hour] / totalByHour[hour]) * weight;
+      peakByHour[hour] += (peakHoursByHour[hour] / totalByHour[hour]) * weight;
+      hourSupport[hour] += weight;
+    }
+  });
+
+  for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+    for (let hour = 0; hour < 24; hour += 1) {
+      if (slotSupport[dayIndex][hour] > 0) {
+        offPeakBySlot[dayIndex][hour] /= slotSupport[dayIndex][hour];
+        peakBySlot[dayIndex][hour] /= slotSupport[dayIndex][hour];
+      }
+    }
+  }
+
+  for (let hour = 0; hour < 24; hour += 1) {
+    if (hourSupport[hour] > 0) {
+      offPeakByHour[hour] /= hourSupport[hour];
+      peakByHour[hour] /= hourSupport[hour];
+    }
+  }
+
+  return {
+    offPeakBySlot,
+    peakBySlot,
+    slotSupport,
+    offPeakByHour,
+    peakByHour,
+    hourSupport,
+    offPeakGlobal: globalSupport > 0 ? offPeakGlobal / globalSupport : 0.5,
+    peakGlobal: globalSupport > 0 ? peakGlobal / globalSupport : 0.5,
+    totalWeight,
+  };
+}
+
+function getPhaseScores(
+  model: PhaseProbabilityModel,
+  atUtc: DateTime,
+): { offPeak: number; peak: number; support: number } {
+  const referenceTime = atUtc.setZone('America/New_York');
+  const dayIndex = referenceTime.weekday - 1;
+  const hour = referenceTime.hour;
+  const slotSupport = model.slotSupport[dayIndex][hour];
+  const hourSupport = model.hourSupport[hour];
+  const slotWeight = slotSupport > 0 ? 0.6 : 0;
+  const hourWeight = hourSupport > 0 ? (slotSupport > 0 ? 0.25 : 0.7) : 0;
+  const globalWeight = 1 - slotWeight - hourWeight;
+  const normalizedSupport =
+    model.totalWeight > 0 ? Math.max(slotSupport, hourSupport) / model.totalWeight : 0;
+
+  return {
+    offPeak:
+      slotWeight * model.offPeakBySlot[dayIndex][hour] +
+      hourWeight * model.offPeakByHour[hour] +
+      globalWeight * model.offPeakGlobal,
+    peak:
+      slotWeight * model.peakBySlot[dayIndex][hour] +
+      hourWeight * model.peakByHour[hour] +
+      globalWeight * model.peakGlobal,
+    support: clamp(normalizedSupport, 0, 1),
+  };
+}
+
+function findOfficialPhaseForecast(
+  windows: PromotionWindow[],
+  activeCampaignIds: Set<string>,
+  phase: PromotionPhase,
+  nowUtc: DateTime,
+): PromotionForecast['nextOffPeak'] {
+  const match = [...windows]
+    .filter((window) => window.phase === phase && activeCampaignIds.has(window.campaignId))
+    .sort((left, right) => left.startedAtUtc.localeCompare(right.startedAtUtc))
+    .find((window) => DateTime.fromISO(window.endedAtUtc, { zone: 'utc' }) >= nowUtc);
+
+  if (!match) {
+    return null;
+  }
+
+  const windowStart = DateTime.fromISO(match.startedAtUtc, { zone: 'utc' });
+  const windowEnd = DateTime.fromISO(match.endedAtUtc, { zone: 'utc' });
+  const isCurrentWindow = nowUtc >= windowStart && nowUtc < windowEnd;
+
+  return {
+    kind: 'official_window',
+    phase,
+    startsAtUtc: isCurrentWindow ? nowUtc.toUTC().toISO() ?? match.startedAtUtc : match.startedAtUtc,
+    endsAtUtc: match.endedAtUtc,
+    confidence: 0.95,
+    explanation: isCurrentWindow
+      ? `You are currently inside an official ${getPhaseLabel(phase)} window.`
+      : `Taken directly from the next official ${getPhaseLabel(phase)} window in the active promotion.`,
+    basis: 'Current Claude Help Center promotion schedule',
+  };
+}
+
+function inferPhaseForecast(
+  campaignForecast: NonNullable<PromotionForecast['campaign']>,
+  model: PhaseProbabilityModel,
+  phase: PromotionPhase,
+  nowUtc: DateTime,
+): PromotionForecast['nextOffPeak'] {
+  if (!campaignForecast.endsAtUtc) {
+    return null;
+  }
+
+  const campaignStart = DateTime.fromISO(campaignForecast.startsAtUtc, { zone: 'utc' });
+  const campaignEnd = DateTime.fromISO(campaignForecast.endsAtUtc, { zone: 'utc' });
+  let cursor = (nowUtc > campaignStart ? nowUtc : campaignStart).startOf('hour');
+
+  while (cursor < campaignEnd) {
+    const currentScores = getPhaseScores(model, cursor);
+    const dominantPhase = currentScores.offPeak >= currentScores.peak ? 'off_peak' : 'peak';
+
+    if (dominantPhase === phase) {
+      const runStart = cursor;
+      let runEnd = cursor;
+      let scoreTotal = 0;
+      let marginTotal = 0;
+      let supportTotal = 0;
+      let samples = 0;
+
+      while (runEnd < campaignEnd) {
+        const runScores = getPhaseScores(model, runEnd);
+        const runDominantPhase = runScores.offPeak >= runScores.peak ? 'off_peak' : 'peak';
+        if (runDominantPhase !== phase) {
+          break;
+        }
+
+        const targetScore = phase === 'off_peak' ? runScores.offPeak : runScores.peak;
+        const rivalScore = phase === 'off_peak' ? runScores.peak : runScores.offPeak;
+        scoreTotal += targetScore;
+        marginTotal += Math.max(0, targetScore - rivalScore);
+        supportTotal += runScores.support;
+        samples += 1;
+        runEnd = runEnd.plus({ hours: 1 });
+      }
+
+      const averageScore = samples > 0 ? scoreTotal / samples : 0.5;
+      const averageMargin = samples > 0 ? marginTotal / samples : 0;
+      const averageSupport = samples > 0 ? supportTotal / samples : 0;
+      const confidence = clamp(
+        campaignForecast.confidence * (0.55 + averageScore * 0.2 + averageMargin * 0.35 + averageSupport * 0.1),
+        0.15,
+        0.8,
+      );
+
+      return {
+        kind: 'historical_inference',
+        phase,
+        startsAtUtc: runStart.toUTC().toISO() ?? runStart.toString(),
+        endsAtUtc: runEnd.toUTC().toISO() ?? runEnd.toString(),
+        confidence,
+        explanation: `Inferred from weekday and hour patterns inside previous official ${getPhaseLabel(phase)} windows.`,
+        basis: 'Estimated campaign window plus ET weekday/hour phase probabilities',
+      };
+    }
+
+    cursor = cursor.plus({ hours: 1 });
+  }
+
+  return null;
+}
+
+function buildForecast(
+  campaigns: PromotionCampaign[],
+  windows: PromotionWindow[],
+  nowUtc: DateTime,
+): PromotionForecast | null {
+  const campaignForecast = buildCampaignForecast(campaigns, nowUtc);
+  if (!campaignForecast) {
+    return null;
+  }
+
+  if (campaignForecast.kind === 'official_campaign') {
+    const activeCampaignIds = new Set(
+      campaigns
+        .filter((campaign) => {
+          const start = DateTime.fromISO(campaign.startsAtUtc, { zone: 'utc' });
+          const end = DateTime.fromISO(campaign.endsAtUtc, { zone: 'utc' });
+          return nowUtc >= start && nowUtc <= end;
+        })
+        .map((campaign) => campaign.id),
+    );
+
+    return {
+      campaign: campaignForecast,
+      nextOffPeak: findOfficialPhaseForecast(windows, activeCampaignIds, 'off_peak', nowUtc),
+      nextPeak: findOfficialPhaseForecast(windows, activeCampaignIds, 'peak', nowUtc),
+    };
+  }
+
+  const model = buildPhaseProbabilityModel(campaigns, windows);
+
+  return {
+    campaign: campaignForecast,
+    nextOffPeak: inferPhaseForecast(campaignForecast, model, 'off_peak', nowUtc),
+    nextPeak: inferPhaseForecast(campaignForecast, model, 'peak', nowUtc),
   };
 }
 

@@ -22,14 +22,30 @@ export interface PromotionWindow {
   sourceUrl: string;
 }
 
-export interface PromotionForecast {
-  kind: 'official_window' | 'estimated_campaign';
+export interface CampaignForecast {
+  kind: 'official_campaign' | 'estimated_campaign';
   startsAtUtc: string;
   endsAtUtc: string | null;
   confidence: number;
   explanation: string;
   basis: string;
   matchedCampaigns: number;
+}
+
+export interface PhaseForecast {
+  kind: 'official_window' | 'historical_inference';
+  phase: PromotionPhase;
+  startsAtUtc: string;
+  endsAtUtc: string | null;
+  confidence: number;
+  explanation: string;
+  basis: string;
+}
+
+export interface PromotionForecast {
+  campaign: CampaignForecast | null;
+  nextOffPeak: PhaseForecast | null;
+  nextPeak: PhaseForecast | null;
 }
 
 export interface PromotionSnapshotResponse {
@@ -70,13 +86,29 @@ export interface WeeklyHeatmapCell {
   usage: number;
 }
 
-export interface ForecastViewModel {
+export interface ForecastTransitionViewModel {
+  phaseLabel: string;
   label: string;
   countdown: string;
   reason: string;
   confidence: number;
   kindLabel: string;
   basis: string;
+}
+
+export interface CampaignForecastViewModel {
+  label: string;
+  countdown: string;
+  reason: string;
+  confidence: number;
+  kindLabel: string;
+  basis: string;
+}
+
+export interface ForecastViewModel {
+  campaign: CampaignForecastViewModel | null;
+  nextOffPeak: ForecastTransitionViewModel | null;
+  nextPeak: ForecastTransitionViewModel | null;
 }
 
 export interface ClockStatus {

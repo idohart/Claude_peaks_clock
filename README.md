@@ -32,9 +32,11 @@ The backend scrapes official promotion campaign pages and normalizes them into:
 
 - `campaigns`: top-level published promotion periods
 - `windows`: expanded peak and off-peak time windows in UTC
-- `forecast`: either the currently active official window or a low-confidence estimate based on spacing between published campaigns
+- `forecast.campaign`: either the currently active official campaign or a low-confidence estimate based on spacing between published campaigns
+- `forecast.nextOffPeak`: the next exact official off-peak window when a campaign is live, otherwise a history-inferred hourly off-peak prediction inside the estimated campaign
+- `forecast.nextPeak`: the next exact official peak window when a campaign is live, otherwise a history-inferred hourly peak prediction inside the estimated campaign
 
-The estimate is computed from real official promotion history, but it is only as strong as the number of campaigns currently published on the Help Center. With a small campaign sample, confidence stays intentionally low.
+The hour-level inference is computed from real official promotion history, but it is only as strong as the number of campaigns currently published on the Help Center. With a small campaign sample, confidence stays intentionally low.
 
 ## Design Reference
 

@@ -2,7 +2,9 @@ import { DateTime } from 'luxon';
 
 import { formatCountdown, formatDuration, getViewerTimeZone, shortHourLabel } from '../lib/time';
 import type {
+  CampaignForecastViewModel,
   DashboardViewModel,
+  ForecastTransitionViewModel,
   ForecastViewModel,
   PromotionSnapshotResponse,
   PromotionWindow,
@@ -78,6 +80,59 @@ function buildHeatmap(matrix: HourAccumulator[][]): WeeklyHeatmapCell[][] {
   );
 }
 
+function buildTransitionViewModel(
+  forecast: PromotionSnapshotResponse['forecast'] extends infer T
+    ? T extends { nextOffPeak: infer P }
+      ? P
+      : never
+    : never,
+  zone: string,
+  now: DateTime,
+): ForecastTransitionViewModel | null {
+  if (!forecast) {
+    return null;
+  }
+
+  const startsAt = DateTime.fromISO(forecast.startsAtUtc, { zone: 'utc' }).setZone(zone);
+  const countdownMinutes = Math.max(0, Math.round(startsAt.diff(now, 'minutes').minutes));
+
+  return {
+    phaseLabel: forecast.phase === 'off_peak' ? 'Off-Peak' : 'Peak',
+    label: startsAt.toFormat("ccc, dd LLL yyyy '|' HH:mm"),
+    countdown: formatCountdown(countdownMinutes),
+    reason: forecast.explanation,
+    confidence: forecast.confidence,
+    kindLabel: forecast.kind === 'official_window' ? 'Official Window' : 'History-Inferred',
+    basis: forecast.basis,
+  };
+}
+
+function buildCampaignViewModel(
+  forecast: PromotionSnapshotResponse['forecast'] extends infer T
+    ? T extends { campaign: infer P }
+      ? P
+      : never
+    : never,
+  zone: string,
+  now: DateTime,
+): CampaignForecastViewModel | null {
+  if (!forecast) {
+    return null;
+  }
+
+  const startsAt = DateTime.fromISO(forecast.startsAtUtc, { zone: 'utc' }).setZone(zone);
+  const countdownMinutes = Math.max(0, Math.round(startsAt.diff(now, 'minutes').minutes));
+
+  return {
+    label: startsAt.toFormat("ccc, dd LLL yyyy '|' HH:mm"),
+    countdown: formatCountdown(countdownMinutes),
+    reason: forecast.explanation,
+    confidence: forecast.confidence,
+    kindLabel: forecast.kind === 'official_campaign' ? 'Official Campaign' : 'Estimated Campaign',
+    basis: forecast.basis,
+  };
+}
+
 function buildForecastViewModel(
   snapshot: PromotionSnapshotResponse,
   zone: string,
@@ -87,16 +142,10 @@ function buildForecastViewModel(
     return null;
   }
 
-  const startsAt = DateTime.fromISO(snapshot.forecast.startsAtUtc, { zone: 'utc' }).setZone(zone);
-  const countdownMinutes = Math.max(0, Math.round(startsAt.diff(now, 'minutes').minutes));
-
   return {
-    label: startsAt.toFormat("ccc, dd LLL yyyy '|' HH:mm"),
-    countdown: formatCountdown(countdownMinutes),
-    reason: snapshot.forecast.explanation,
-    confidence: snapshot.forecast.confidence,
-    kindLabel: snapshot.forecast.kind === 'official_window' ? 'Official Window' : 'Estimated Campaign',
-    basis: snapshot.forecast.basis,
+    campaign: buildCampaignViewModel(snapshot.forecast.campaign, zone, now),
+    nextOffPeak: buildTransitionViewModel(snapshot.forecast.nextOffPeak, zone, now),
+    nextPeak: buildTransitionViewModel(snapshot.forecast.nextPeak, zone, now),
   };
 }
 

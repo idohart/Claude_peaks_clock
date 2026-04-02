@@ -25,11 +25,11 @@
   {
     "id": 3,
     "priority": "high",
-    "description": "User can see a forecasted next promotion start that is computed from official published campaign history rather than hard-coded.",
+    "description": "User can see a forecasted next promotion campaign plus next likely off-peak and peak transitions computed from official published campaign history rather than hard-coded.",
     "verify": [
       "Open the dashboard",
       "Inspect the forecast card",
-      "Confirm the estimate includes a timestamp, confidence score, and supporting rationale"
+      "Confirm the estimate includes next off-peak and next peak timestamps, confidence scores, and supporting rationale"
     ],
     "passes": true
   },
