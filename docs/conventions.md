@@ -3,16 +3,16 @@
 ## Code
 Use strict TypeScript and keep calculations deterministic.
 
-Prefer storing history timestamps in UTC ISO 8601 strings and converting to local time at the edge.
+Prefer storing normalized campaign timestamps in UTC ISO 8601 strings and converting to local time at the edge.
 
 Keep UI components presentational. Any derived labels or scoring logic belongs in `src/services`.
 
 ## Product
-The app should clearly distinguish observed history from forecasted estimates.
+The app should clearly distinguish official published windows from forecasted estimates.
 
-If no authoritative external feed exists, label the loaded dataset as observed or demo history.
+If the Help Center article shape changes and parsing becomes uncertain, fail loudly instead of silently inventing data.
 
 ## Styling
 Use a high-contrast dashboard look with intentional typography and dense information blocks.
 
-Favor reusable CSS utility classes only when they reduce repetition; do not build a utility framework.
+Treat `refs/design` as the visual source of truth and keep implementation drift low.

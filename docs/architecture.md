@@ -1,33 +1,35 @@
 # Architecture
 
 ## Purpose
-The app is a client-side dashboard. It reads a historical dataset of Claude peak and off-peak windows, converts those windows into the viewer's timezone, derives forecast signals, and renders a real-time interface.
+The app is a web-backed dashboard. An Express service scrapes official Claude Help Center promotion pages, normalizes them into UTC campaign windows, and the React client converts those windows into the viewer's timezone for a real-time dashboard.
 
 ## Layers
 `src/types` -> shared contracts only
 
-`src/data` -> historical source data
+`server` -> web scraping, normalization, API routes
 
 `src/lib` -> stateless time helpers
 
-`src/services` -> analytics, forecasting, view-model shaping
+`src/services` -> client-side view-model shaping from API payloads
 
-`src/ui` -> presentation components only
+`src/app` -> presentation components only
 
-`src/App.tsx` -> composition root
+`refs/design` -> Figma-derived design reference only, not runtime code
 
 ## Dependency Rules
-`src/ui` may import from `src/services`, `src/lib`, and `src/types`, but not from `src/data`.
+`src/app` may import from `src/services`, `src/lib`, and `src/types`, but not from `server`.
 
-`src/services` may import from `src/data`, `src/lib`, and `src/types`.
+`src/services` may import from `src/lib` and `src/types`.
+
+`server` may import from `src/types`, but must not import from `src/app`.
 
 `src/lib` may import from `src/types` only.
 
 `src/types` must not import from any other app layer.
 
 ## Constraints
-Import boundaries are enforced in `check.sh` with grep checks.
+Import boundaries are enforced in `check.sh`.
 
-The app is dataset-driven. Any claim about "next promotion" must be produced from observed history in code, not a hard-coded date string in UI components.
+Any claim about "next promotion" must be produced from official published campaign history in code, not a hard-coded date string in UI components.
 
 Timezone formatting must be performed in the service or helper layers so UI code stays declarative.

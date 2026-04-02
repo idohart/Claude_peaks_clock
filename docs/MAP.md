@@ -1,10 +1,10 @@
 # Project Map
 
 ## What This Is
-Timezone-aware web app that visualizes historical Claude usage peak and off-peak windows, then estimates the next likely promotion lift window in real time.
+Timezone-aware web app that visualizes official Claude promotion windows from the web, then estimates the next likely promotion campaign in real time.
 
 ## Stack
-Vite, React 19, TypeScript, Luxon, CSS
+Vite, React 19, TypeScript, Express 5, Luxon, Tailwind CSS 4, Recharts
 
 ## Architecture
 [architecture.md](/c:/ido%20harti/Script/claude%20promotion%20times/docs/architecture.md)

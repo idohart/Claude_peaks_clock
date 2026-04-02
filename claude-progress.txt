@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 0
+# Sessions since last maintenance: 1
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -10,3 +10,10 @@
 - Harness improvements: added README and Windows-friendly init/check scripts
 - Next: replace demo history with real observations or connect a live telemetry source
 - Issues: there is no official Anthropic promotions feed in the repo, so the current forecast is explicitly dataset-driven
+
+## Session 2
+- Replaced the seeded demo dataset with a real web-backed Express API that scrapes official Claude Help Center promotion articles from the sitemap
+- Ported the runtime UI to the user-provided Figma-derived design under refs/design while keeping refs/design excluded from lint and runtime imports
+- Normalized official promotion articles into campaign and peak/off-peak window records, then localized them in the browser for the clock, charts, heatmap, and history timeline
+- Tested: npm run check, direct tsx snapshot fetch, and HTTP endpoint probe after fixing the Express 5 SPA fallback
+- Current estimate quality: real computation over official campaign history, but intentionally low confidence because only a small number of published campaigns are available

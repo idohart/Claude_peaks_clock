@@ -1,89 +1,109 @@
 export type PromotionPhase = 'peak' | 'off_peak';
 
+export interface PromotionCampaign {
+  id: string;
+  title: string;
+  sourceUrl: string;
+  summary: string;
+  startsAtUtc: string;
+  endsAtUtc: string;
+  updatedAtUtc: string | null;
+  scheduleSummary: string;
+}
+
 export interface PromotionWindow {
   id: string;
+  campaignId: string;
   phase: PromotionPhase;
   startedAtUtc: string;
   endedAtUtc: string;
-  observedCapacityDelta: number;
   label: string;
   notes: string;
+  sourceUrl: string;
 }
 
-export interface TimelineSegment {
-  left: number;
-  width: number;
+export interface PromotionForecast {
+  kind: 'official_window' | 'estimated_campaign';
+  startsAtUtc: string;
+  endsAtUtc: string | null;
+  confidence: number;
+  explanation: string;
+  basis: string;
+  matchedCampaigns: number;
 }
 
-export interface LocalizedWindow {
+export interface PromotionSnapshotResponse {
+  fetchedAtUtc: string;
+  sourceLabel: string;
+  sourceUrls: string[];
+  campaigns: PromotionCampaign[];
+  windows: PromotionWindow[];
+  forecast: PromotionForecast | null;
+}
+
+export interface LocalizedPromotionWindow {
   id: string;
+  campaignId: string;
   phase: PromotionPhase;
-  startedAtMillis: number;
   phaseLabel: string;
+  startedAtMillis: number;
   startedAtLabel: string;
   endedAtLabel: string;
   dayLabel: string;
   dateLabel: string;
   durationLabel: string;
-  deltaLabel: string;
   label: string;
   notes: string;
-  segments: TimelineSegment[];
+  sourceUrl: string;
 }
 
-export interface ForecastResult {
-  startsAtLabel: string;
-  endsAtLabel: string;
-  countdownLabel: string;
-  confidence: number;
-  matches: number;
-  clusterLabel: string;
-  explanation: string;
+export interface UsageHourPoint {
+  hour: number;
+  label: string;
+  usage: number;
+  isPeak: boolean;
 }
 
-export interface HeatmapCell {
-  dayIndex: number;
+export interface WeeklyHeatmapCell {
   dayLabel: string;
   hour: number;
+  usage: number;
+}
+
+export interface ForecastViewModel {
   label: string;
-  peak: number;
-  offPeak: number;
-  dominant: PromotionPhase | 'mixed';
-  intensity: number;
+  countdown: string;
+  reason: string;
+  confidence: number;
+  kindLabel: string;
+  basis: string;
 }
 
-export interface SignalHour {
-  hour: number;
+export interface ClockStatus {
   label: string;
-  peak: number;
-  offPeak: number;
-  dominant: PromotionPhase | 'balanced';
-  intensity: number;
+  usage: number;
+  tone: 'peak' | 'moderate' | 'off_peak';
 }
 
-export interface MetricSnapshot {
-  label: string;
-  value: string;
-  detail: string;
-  tone: 'cool' | 'warm' | 'neutral';
+export interface PromotionHistoryEntry {
+  id: string;
+  date: string;
+  time: string;
+  day: string;
+  usage: number;
+  duration: string;
+  reason: string;
+  phase: PromotionPhase;
+  sourceUrl: string;
 }
 
-export interface LiveSnapshot {
-  zoneLabel: string;
-  timeLabel: string;
-  dateLabel: string;
-  phaseLabel: string;
-  phaseTone: PromotionPhase | 'balanced';
-  signalDetail: string;
-}
-
-export interface DashboardModel {
-  viewerZone: string;
-  historySourceLabel: string;
-  live: LiveSnapshot;
-  forecast: ForecastResult;
-  metrics: MetricSnapshot[];
-  todaySignal: SignalHour[];
-  heatmap: HeatmapCell[];
-  history: LocalizedWindow[];
+export interface DashboardViewModel {
+  sourceLabel: string;
+  sourceUrls: string[];
+  timezone: string;
+  todayUsage: UsageHourPoint[];
+  weeklyHeatmap: WeeklyHeatmapCell[][];
+  forecast: ForecastViewModel | null;
+  history: PromotionHistoryEntry[];
+  currentStatus: ClockStatus;
 }

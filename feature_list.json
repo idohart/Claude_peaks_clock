@@ -25,7 +25,7 @@
   {
     "id": 3,
     "priority": "high",
-    "description": "User can see a forecasted next promotion start that is computed from the observed historical pattern rather than hard-coded.",
+    "description": "User can see a forecasted next promotion start that is computed from official published campaign history rather than hard-coded.",
     "verify": [
       "Open the dashboard",
       "Inspect the forecast card",
@@ -35,11 +35,22 @@
   },
   {
     "id": 4,
-    "priority": "medium",
-    "description": "Developer can replace the seeded history with their own observations without rewriting the UI.",
+    "priority": "high",
+    "description": "The backend can discover official Claude promotion articles from the web and normalize them into campaign and window records without relying on local files.",
     "verify": [
-      "Open the data file referenced in the docs",
-      "Confirm the history schema is documented in code and isolated from UI code"
+      "Start the API",
+      "Request /api/promotions",
+      "Confirm the response includes official source URLs, campaign records, and expanded windows"
+    ],
+    "passes": true
+  },
+  {
+    "id": 5,
+    "priority": "medium",
+    "description": "The React app follows the Figma-derived reference implementation while treating refs/design as a non-runtime reference bundle.",
+    "verify": [
+      "Compare src/app and src/styles against refs/design",
+      "Confirm the runtime app does not import from refs/design"
     ],
     "passes": true
   }
