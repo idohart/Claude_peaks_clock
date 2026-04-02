@@ -29,15 +29,28 @@ export function PromotionHistory({ history }: PromotionHistoryProps) {
             target="_blank"
           >
             <div className="flex items-center gap-4">
-              <span className="text-[#e2e2e8] text-sm font-['JetBrains_Mono']">{entry.time}</span>
-              <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono']">
-                {entry.day}, {entry.date}
+              <div>
+                <span className="text-[#e2e2e8] text-sm font-['JetBrains_Mono']">
+                  {entry.timeRange}
+                </span>
+                <div className="text-[#6b6b80] text-xs font-['JetBrains_Mono']">
+                  {entry.day}, {entry.date}
+                </div>
+              </div>
+              <span
+                className={`text-[10px] font-['JetBrains_Mono'] uppercase tracking-wider px-2 py-0.5 rounded ${
+                  entry.phase === 'peak'
+                    ? 'text-[#ff9a9a] bg-[#e05252]/10'
+                    : 'text-[#7df2a6] bg-[#4ade80]/10'
+                }`}
+              >
+                {entry.phaseLabel}
               </span>
             </div>
             <p className="text-[#6b6b80] text-xs">{entry.reason}</p>
             <div className="flex items-center gap-6 text-xs font-['JetBrains_Mono']">
               <div>
-                <span className="text-[#6b6b80]/60">pressure </span>
+                <span className="text-[#6b6b80]/60">pattern </span>
                 <span className={entry.phase === 'peak' ? 'text-[#e05252]' : 'text-[#4ade80]'}>
                   {entry.usage}%
                 </span>

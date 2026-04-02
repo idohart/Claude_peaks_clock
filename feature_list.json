@@ -53,5 +53,38 @@
       "Confirm the runtime app does not import from refs/design"
     ],
     "passes": true
+  },
+  {
+    "id": 6,
+    "priority": "high",
+    "description": "User can distinguish official live promotion status from historical or inferred pressure patterns, so the clock does not overstate certainty when no promotion is live.",
+    "verify": [
+      "Open the dashboard outside an official promotion window",
+      "Confirm the clock says no promotion is live",
+      "Confirm the historical pattern is shown separately as an inference aid"
+    ],
+    "passes": true
+  },
+  {
+    "id": 7,
+    "priority": "high",
+    "description": "Backend continues serving campaign and phase forecasts if holiday context data is unavailable.",
+    "verify": [
+      "Simulate a holiday API failure",
+      "Request the promotion snapshot",
+      "Confirm the response still includes campaign, next off-peak, and next peak forecasts"
+    ],
+    "passes": true
+  },
+  {
+    "id": 8,
+    "priority": "medium",
+    "description": "Developer can generate repeatable Playwright audit screenshots and a runtime log for the live app.",
+    "verify": [
+      "Start the app locally",
+      "Run npm run audit:screenshots",
+      "Confirm desktop and mobile screenshots plus a JSON audit log are produced"
+    ],
+    "passes": true
   }
 ]

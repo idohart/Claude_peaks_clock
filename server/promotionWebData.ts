@@ -932,7 +932,16 @@ async function buildPromotionSnapshot(): Promise<PromotionSnapshotResponse> {
     }
   }
 
-  const holidayDates = await getHolidayDates([...relevantYears]);
+  let holidayDates = new Set<string>();
+  try {
+    holidayDates = await getHolidayDates([...relevantYears]);
+  } catch (error) {
+    console.warn(
+      `Holiday context unavailable, continuing with weekday/weekend model only: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
 
   return {
     fetchedAtUtc: nowUtc.toISO() ?? nowUtc.toString(),

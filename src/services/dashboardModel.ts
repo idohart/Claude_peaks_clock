@@ -6,6 +6,7 @@ import type {
   DashboardViewModel,
   ForecastTransitionViewModel,
   ForecastViewModel,
+  PromotionPhase,
   PromotionSnapshotResponse,
   PromotionWindow,
   UsageHourPoint,
@@ -155,38 +156,89 @@ function usageForWindowStart(matrix: HourAccumulator[][], startedAt: DateTime): 
   return total === 0 ? 0 : Math.round((bucket.peak / total) * 100);
 }
 
+function getPatternTone(usage: number): 'peak' | 'moderate' | 'off_peak' {
+  if (usage >= 60) {
+    return 'peak';
+  }
+
+  if (usage >= 35) {
+    return 'moderate';
+  }
+
+  return 'off_peak';
+}
+
+function getPhaseLabel(phase: PromotionPhase): string {
+  return phase === 'off_peak' ? 'Off-Peak' : 'Peak';
+}
+
+function getPatternLabel(tone: 'peak' | 'moderate' | 'off_peak'): string {
+  if (tone === 'peak') {
+    return 'Peak-leaning';
+  }
+
+  if (tone === 'moderate') {
+    return 'Balanced';
+  }
+
+  return 'Off-peak-leaning';
+}
+
 export function buildDashboardModel(
   snapshot: PromotionSnapshotResponse,
   nowMillis: number,
   zone = getViewerTimeZone(),
 ): DashboardViewModel {
   const now = DateTime.fromMillis(nowMillis).setZone(zone);
+  const nowUtc = now.toUTC();
   const matrix = buildHourlyMatrix(snapshot.windows, zone);
   const todayUsage = buildUsageHours(matrix, now.weekday - 1);
   const weeklyHeatmap = buildHeatmap(matrix);
   const currentUsage = todayUsage[now.hour]?.usage ?? 0;
-  const currentStatus =
-    currentUsage >= 60
-      ? { label: 'Peak', usage: currentUsage, tone: 'peak' as const }
-      : currentUsage >= 35
-        ? { label: 'Moderate', usage: currentUsage, tone: 'moderate' as const }
-        : { label: 'Off-Peak', usage: currentUsage, tone: 'off_peak' as const };
+  const patternTone = getPatternTone(currentUsage);
+  const activeOfficialWindow = snapshot.windows.find((window) => {
+    const startedAtUtc = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' });
+    const endedAtUtc = DateTime.fromISO(window.endedAtUtc, { zone: 'utc' });
+    return nowUtc >= startedAtUtc && nowUtc < endedAtUtc;
+  });
+
+  const currentStatus = activeOfficialWindow
+    ? {
+        officialLabel: `${getPhaseLabel(activeOfficialWindow.phase)} Window`,
+        officialTone: activeOfficialWindow.phase,
+        officialDetail: 'Official promotion live now',
+        patternLabel: `${getPatternLabel(patternTone)} pattern`,
+        patternUsage: currentUsage,
+        patternTone,
+      }
+    : {
+        officialLabel: 'No Promotion Live',
+        officialTone: 'inactive' as const,
+        officialDetail: 'Current signal below is historical, not live Claude telemetry',
+        patternLabel: `${getPatternLabel(patternTone)} pattern`,
+        patternUsage: currentUsage,
+        patternTone,
+      };
 
   const history = [...snapshot.windows]
     .sort((left, right) => right.startedAtUtc.localeCompare(left.startedAtUtc))
     .map((window) => {
       const startedAt = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' }).setZone(zone);
       const endedAt = DateTime.fromISO(window.endedAtUtc, { zone: 'utc' }).setZone(zone);
+      const crossesDay = !startedAt.hasSame(endedAt, 'day');
 
       return {
         id: window.id,
         date: startedAt.toFormat('LLL dd, yyyy'),
-        time: startedAt.toFormat('HH:mm'),
+        timeRange: crossesDay
+          ? `${startedAt.toFormat('HH:mm')} -> ${endedAt.toFormat('ccc HH:mm')}`
+          : `${startedAt.toFormat('HH:mm')} -> ${endedAt.toFormat('HH:mm')}`,
         day: startedAt.toFormat('ccc'),
         usage: usageForWindowStart(matrix, startedAt),
         duration: formatDuration(Math.round(endedAt.diff(startedAt, 'minutes').minutes)),
         reason: window.label,
         phase: window.phase,
+        phaseLabel: getPhaseLabel(window.phase),
         sourceUrl: window.sourceUrl,
       };
     });
@@ -198,6 +250,10 @@ export function buildDashboardModel(
       .setZone(zone)
       .toFormat('dd LLL yyyy HH:mm')}`,
     sourceUrls: snapshot.sourceUrls,
+    sourceLinks: snapshot.campaigns.map((campaign) => ({
+      url: campaign.sourceUrl,
+      label: campaign.title.replace(/^Claude\s+/i, ''),
+    })),
     timezone: zone,
     todayUsage,
     weeklyHeatmap,

@@ -112,26 +112,31 @@ export interface ForecastViewModel {
 }
 
 export interface ClockStatus {
-  label: string;
-  usage: number;
-  tone: 'peak' | 'moderate' | 'off_peak';
+  officialLabel: string;
+  officialTone: 'peak' | 'off_peak' | 'inactive';
+  officialDetail: string;
+  patternLabel: string;
+  patternUsage: number;
+  patternTone: 'peak' | 'moderate' | 'off_peak';
 }
 
 export interface PromotionHistoryEntry {
   id: string;
   date: string;
-  time: string;
+  timeRange: string;
   day: string;
   usage: number;
   duration: string;
   reason: string;
   phase: PromotionPhase;
+  phaseLabel: string;
   sourceUrl: string;
 }
 
 export interface DashboardViewModel {
   sourceLabel: string;
   sourceUrls: string[];
+  sourceLinks: Array<{ url: string; label: string }>;
   timezone: string;
   todayUsage: UsageHourPoint[];
   weeklyHeatmap: WeeklyHeatmapCell[][];

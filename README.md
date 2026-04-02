@@ -26,6 +26,16 @@ That starts:
 npm run check
 ```
 
+## Runtime Audit
+
+With the app already running locally:
+
+```bash
+npm run audit:screenshots
+```
+
+Artifacts are written to `audit-artifacts/latest/` by default and include desktop/mobile screenshots plus a JSON audit log with console and failed-request details.
+
 ## Data Model
 
 The backend scrapes official promotion campaign pages and normalizes them into:
@@ -37,6 +47,8 @@ The backend scrapes official promotion campaign pages and normalizes them into:
 - `forecast.nextPeak`: the next exact official peak window when a campaign is live, otherwise a history-inferred hourly peak prediction inside the estimated campaign
 
 The hour-level inference is computed from real official promotion history using ET day-of-week, weekend, hour, and US public holiday context, but it is only as strong as the number of campaigns currently published on the Help Center. With a small campaign sample, confidence stays intentionally low.
+
+The clock intentionally distinguishes official live status from historical pattern signals so the UI does not present inferred pressure as live Claude telemetry.
 
 ## Design Reference
 

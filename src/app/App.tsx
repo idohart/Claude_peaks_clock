@@ -131,15 +131,15 @@ export default function App() {
             into local-time peak and off-peak windows.
           </p>
           <div className="flex flex-wrap gap-3">
-            {dashboard.sourceUrls.map((url) => (
+            {dashboard.sourceLinks.map((source) => (
               <a
                 className="text-[#c4a1ff]/50 hover:text-[#c4a1ff] text-xs font-['JetBrains_Mono'] transition-colors"
-                href={url}
-                key={url}
+                href={source.url}
+                key={source.url}
                 rel="noreferrer"
                 target="_blank"
               >
-                source
+                {source.label}
               </a>
             ))}
           </div>

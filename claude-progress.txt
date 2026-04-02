@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 3
+# Sessions since last maintenance: 5
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -28,3 +28,11 @@
 - Added US public holiday context to the hourly forecaster using a live holiday API
 - Extended the phase model so future off-peak and peak estimates are weighted by ET day-of-week, weekend, hour, and holiday signals
 - Tested: npm run check and direct snapshot inspection confirming the new holiday-aware forecast basis
+
+## Session 5
+- Ran a full production-style browser audit with Playwright screenshots on desktop and mobile
+- Fixed a major accuracy issue by separating official live promotion status from historical pattern inference in the clock panel
+- Improved the history table so peak/off-peak phases are explicit and overnight windows show cross-day ranges clearly
+- Hardened the backend so holiday API outages no longer break the promotion snapshot
+- Added a repeatable Playwright audit script and ignored generated audit artifacts
+- Tested: npm run check, live Playwright screenshots, zero console errors, zero failed requests, and simulated holiday API outage fallback

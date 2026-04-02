@@ -12,8 +12,18 @@ export function ClockDisplay({ currentTime, status, sourceLabel, timezone }: Clo
   const minutes = currentTime.getMinutes().toString().padStart(2, '0');
   const seconds = currentTime.getSeconds().toString().padStart(2, '0');
 
-  const statusColor =
-    status.tone === 'peak' ? '#e05252' : status.tone === 'moderate' ? '#c4a1ff' : '#4ade80';
+  const officialColor =
+    status.officialTone === 'peak'
+      ? '#e05252'
+      : status.officialTone === 'off_peak'
+        ? '#4ade80'
+        : '#6b6b80';
+  const patternColor =
+    status.patternTone === 'peak'
+      ? '#e05252'
+      : status.patternTone === 'moderate'
+        ? '#c4a1ff'
+        : '#4ade80';
 
   return (
     <div className="h-full rounded-lg bg-[#111118] border border-white/[0.06] p-6 flex flex-col justify-between">
@@ -41,26 +51,45 @@ export function ClockDisplay({ currentTime, status, sourceLabel, timezone }: Clo
           })}
         </p>
         <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono']">{timezone}</p>
-        <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between gap-4">
-          <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
-            Current Status
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span
-                className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-                style={{ backgroundColor: statusColor }}
-              />
-              <span
-                className="relative inline-flex rounded-full h-2 w-2"
-                style={{ backgroundColor: statusColor }}
-              />
+
+        <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
+              Official Status
             </span>
-            <span className="text-xs font-['JetBrains_Mono']" style={{ color: statusColor }}>
-              {status.label} ({status.usage}%)
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2 mt-1">
+                <span
+                  className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                  style={{ backgroundColor: officialColor }}
+                />
+                <span
+                  className="relative inline-flex rounded-full h-2 w-2"
+                  style={{ backgroundColor: officialColor }}
+                />
+              </span>
+              <div className="text-right">
+                <p className="text-xs font-['JetBrains_Mono']" style={{ color: officialColor }}>
+                  {status.officialLabel}
+                </p>
+                <p className="text-[11px] text-[#6b6b80]">{status.officialDetail}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-start justify-between gap-4">
+            <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
+              Historical Pattern
             </span>
+            <div className="text-right">
+              <p className="text-xs font-['JetBrains_Mono']" style={{ color: patternColor }}>
+                {status.patternLabel} ({status.patternUsage}%)
+              </p>
+              <p className="text-[11px] text-[#6b6b80]">Used for inference when no official window is live</p>
+            </div>
           </div>
         </div>
+
         <p className="text-[#6b6b80]/60 text-[11px] leading-relaxed pt-3">{sourceLabel}</p>
       </div>
     </div>
