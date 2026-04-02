@@ -36,6 +36,10 @@ npm run audit:screenshots
 
 Artifacts are written to `audit-artifacts/latest/` by default and include desktop/mobile screenshots plus a JSON audit log with console and failed-request details.
 
+## CI
+
+GitHub Actions runs on push and pull request. It installs dependencies, runs `npm run check`, starts the backend, and smoke-tests `GET /api/promotions` so frontend and backend regressions are caught before release.
+
 ## Data Model
 
 The backend scrapes official promotion campaign pages and normalizes them into:

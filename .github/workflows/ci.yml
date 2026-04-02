@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint and build checks
+        run: npm run check
+
+      - name: Smoke test promotions API
+        shell: bash
+        run: |
+          npm run start > server.log 2>&1 &
+          SERVER_PID=$!
+          cleanup() {
+            kill "$SERVER_PID"
+          }
+          trap cleanup EXIT
+
+          for _ in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/api/promotions > response.json; then
+              break
+            fi
+            sleep 1
+          done
+
+          test -s response.json
+          node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync('response.json','utf8')); if (!Array.isArray(data.sourceUrls) || !Array.isArray(data.campaigns) || !Array.isArray(data.windows) || !data.forecast) { process.exit(1); }"

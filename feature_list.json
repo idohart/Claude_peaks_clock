@@ -86,5 +86,16 @@
       "Confirm desktop and mobile screenshots plus a JSON audit log are produced"
     ],
     "passes": true
+  },
+  {
+    "id": 9,
+    "priority": "medium",
+    "description": "GitHub validates the app build and backend promotions API automatically on push and pull request.",
+    "verify": [
+      "Push the repository to GitHub",
+      "Inspect the CI workflow run",
+      "Confirm it installs dependencies, runs npm run check, and smoke-tests /api/promotions"
+    ],
+    "passes": true
   }
 ]

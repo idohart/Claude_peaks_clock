@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 5
+# Sessions since last maintenance: 0
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -36,3 +36,9 @@
 - Hardened the backend so holiday API outages no longer break the promotion snapshot
 - Added a repeatable Playwright audit script and ignored generated audit artifacts
 - Tested: npm run check, live Playwright screenshots, zero console errors, zero failed requests, and simulated holiday API outage fallback
+
+## Session 6
+- Maintenance: re-verified the current app state after the audit, kept docs current, and reset the maintenance counter
+- Added a GitHub Actions workflow that runs lint/build checks and smoke-tests the backend promotions API on push and pull request
+- Prepared the repository for publication on GitHub and pushed the current app state to the remote repository
+- Tested: npm run check, direct API response validation, and CI workflow definition review
