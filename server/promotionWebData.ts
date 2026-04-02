@@ -765,11 +765,21 @@ function findOfficialPhaseForecast(
   activeCampaignIds: Set<string>,
   phase: PromotionPhase,
   nowUtc: DateTime,
+  includeCurrentWindow: boolean,
 ): PromotionForecast['nextOffPeak'] {
   const match = [...windows]
     .filter((window) => window.phase === phase && activeCampaignIds.has(window.campaignId))
     .sort((left, right) => left.startedAtUtc.localeCompare(right.startedAtUtc))
-    .find((window) => DateTime.fromISO(window.endedAtUtc, { zone: 'utc' }) >= nowUtc);
+    .find((window) => {
+      const windowStart = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' });
+      const windowEnd = DateTime.fromISO(window.endedAtUtc, { zone: 'utc' });
+
+      if (includeCurrentWindow) {
+        return windowEnd >= nowUtc;
+      }
+
+      return windowStart > nowUtc;
+    });
 
   if (!match) {
     return null;
@@ -799,6 +809,7 @@ function inferNearTermPhaseForecast(
   holidayDates: Set<string>,
   phase: PromotionPhase,
   nowUtc: DateTime,
+  includeCurrentWindow: boolean,
 ): PromotionForecast['nextOffPeak'] {
   const horizonEnd = nowUtc.plus({ hours: PATTERN_FORECAST_HORIZON_HOURS }).startOf('hour');
   let cursor = nowUtc.startOf('hour');
@@ -809,6 +820,19 @@ function inferNearTermPhaseForecast(
 
     if (dominantPhase === phase) {
       const runStart = cursor;
+      if (!includeCurrentWindow && runStart <= nowUtc) {
+        while (cursor < horizonEnd) {
+          const nextCursor = cursor.plus({ hours: 1 });
+          const nextScores = getPhaseScores(model, nextCursor, holidayDates);
+          const nextDominantPhase = nextScores.offPeak >= nextScores.peak ? 'off_peak' : 'peak';
+          if (nextDominantPhase !== phase) {
+            cursor = nextCursor;
+            break;
+          }
+          cursor = nextCursor;
+        }
+        continue;
+      }
       let runEnd = cursor;
       let scoreTotal = 0;
       let marginTotal = 0;
@@ -883,15 +907,15 @@ function buildForecast(
 
     return {
       campaign: campaignForecast,
-      nextOffPeak: findOfficialPhaseForecast(windows, activeCampaignIds, 'off_peak', nowUtc),
-      nextPeak: findOfficialPhaseForecast(windows, activeCampaignIds, 'peak', nowUtc),
+      nextOffPeak: findOfficialPhaseForecast(windows, activeCampaignIds, 'off_peak', nowUtc, true),
+      nextPeak: findOfficialPhaseForecast(windows, activeCampaignIds, 'peak', nowUtc, false),
     };
   }
 
   return {
     campaign: campaignForecast,
-    nextOffPeak: inferNearTermPhaseForecast(model, holidayDates, 'off_peak', nowUtc),
-    nextPeak: inferNearTermPhaseForecast(model, holidayDates, 'peak', nowUtc),
+    nextOffPeak: inferNearTermPhaseForecast(model, holidayDates, 'off_peak', nowUtc, true),
+    nextPeak: inferNearTermPhaseForecast(model, holidayDates, 'peak', nowUtc, false),
   };
 }
 

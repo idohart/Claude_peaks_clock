@@ -130,5 +130,16 @@
       "Confirm hours without official window coverage are marked as no-data rather than shown as inferred off-peak values"
     ],
     "passes": true
+  },
+  {
+    "id": 13,
+    "priority": "medium",
+    "description": "The production UI is consistently left-aligned LTR, avoids the old full-screen loading page, removes external Claude Help Center links, and shows the next future peak start instead of the current peak time.",
+    "verify": [
+      "Load the app before data arrives and confirm the shell stays visible instead of a separate loading screen",
+      "Inspect the clock, forecast, history, and footer and confirm text is left-aligned LTR with no outbound help-page links",
+      "Confirm the next peak card points to a future peak start when the current local time is already inside a peak-pattern block"
+    ],
+    "passes": true
   }
 ]

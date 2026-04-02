@@ -109,7 +109,7 @@ export function UsageChart({ data }: UsageChartProps) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] mt-3 text-center">
+      <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] mt-3">
         Official published windows only | Dashed line marks 60% peak threshold | Highlighted bar is current hour when official data exists
       </p>
     </div>

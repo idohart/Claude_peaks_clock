@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 3
+# Sessions since last maintenance: 4
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -60,3 +60,9 @@
 - Changed the heatmap ordering to a rolling 7-day calendar range ending on today, so it no longer forces a Monday-to-Sunday layout
 - Added explicit no-data handling for hours and days without official window coverage so empty periods do not read as real off-peak signals
 - Tested: npm run check and direct dashboard-model inspection confirming the range now runs from 27 Mar through 02 Apr with today last
+
+## Session 10
+- Adjusted the forecast semantics so the next peak card points to the next future peak start instead of echoing the current peak block
+- Removed the old full-screen loading page, removed outbound Claude Help Center links from the runtime UI, and made the app shell consistently left-aligned with explicit LTR direction
+- Kept the near-term off-peak estimate as a heuristic only and validated that it now points to later today while the next peak points to tomorrow
+- Tested: npm run check and direct forecast inspection showing next off-peak at 18:00 UTC on 02 Apr 2026 and next peak at 12:00 UTC on 03 Apr 2026

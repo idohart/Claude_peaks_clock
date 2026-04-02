@@ -11,7 +11,6 @@ import { WeeklyHeatmap } from './components/WeeklyHeatmap';
 export default function App() {
   const [tick, setTick] = useState(() => Date.now());
   const [snapshot, setSnapshot] = useState<PromotionSnapshotResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,9 +37,7 @@ export default function App() {
           setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        // no-op: the app shell stays visible while data syncs
       }
     }
 
@@ -60,33 +57,8 @@ export default function App() {
     [snapshot, tick],
   );
 
-  if (loading && !dashboard) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0f] p-4 md:p-8 text-[#e2e2e8]">
-        <div className="max-w-7xl mx-auto pt-16 font-['JetBrains_Mono'] text-sm text-[#6b6b80]">
-          Loading official promotion data...
-        </div>
-      </div>
-    );
-  }
-
-  if (error && !dashboard) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0f] p-4 md:p-8 text-[#e2e2e8]">
-        <div className="max-w-7xl mx-auto pt-16 space-y-3">
-          <h1 className="font-['JetBrains_Mono'] text-2xl text-[#c4a1ff]">Claude Promotion Clock</h1>
-          <p className="text-[#ff7a90]">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!dashboard) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-[#0a0a0f] p-4 md:p-8">
+    <div className="min-h-screen bg-[#0a0a0f] p-4 md:p-8 text-left" dir="ltr">
       <div className="max-w-7xl mx-auto space-y-8">
         <header className="pt-8 pb-4">
           <div className="flex items-baseline gap-3 mb-1">
@@ -107,43 +79,40 @@ export default function App() {
           {error ? <p className="text-[#ff7a90] text-sm mt-2">{error}</p> : null}
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-2">
-            <ClockDisplay
-              currentTime={new Date(tick)}
-              status={dashboard.currentStatus}
-              sourceLabel={dashboard.sourceLabel}
-              timezone={dashboard.timezone}
-            />
-          </div>
-          <div className="lg:col-span-3">
-            <PredictionPanel forecast={dashboard.forecast} />
-          </div>
-        </div>
+        {dashboard ? (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              <div className="lg:col-span-2">
+                <ClockDisplay
+                  currentTime={new Date(tick)}
+                  status={dashboard.currentStatus}
+                  sourceLabel={dashboard.sourceLabel}
+                  timezone={dashboard.timezone}
+                />
+              </div>
+              <div className="lg:col-span-3">
+                <PredictionPanel forecast={dashboard.forecast} />
+              </div>
+            </div>
 
-        <UsageChart data={dashboard.todayUsage} />
-        <WeeklyHeatmap data={dashboard.weeklyHeatmap} />
-        <PromotionHistory history={dashboard.history} />
+            <UsageChart data={dashboard.todayUsage} />
+            <WeeklyHeatmap data={dashboard.weeklyHeatmap} />
+            <PromotionHistory history={dashboard.history} />
 
-        <footer className="border-t border-white/5 pt-6 pb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <p className="text-[#6b6b80] text-sm max-w-xl">
-            Web data is fetched from official Claude Help Center promotion pages and converted
-            into local-time peak and off-peak windows.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {dashboard.sourceLinks.map((source) => (
-              <a
-                className="text-[#c4a1ff]/50 hover:text-[#c4a1ff] text-xs font-['JetBrains_Mono'] transition-colors"
-                href={source.url}
-                key={source.url}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {source.label}
-              </a>
-            ))}
+            <footer className="border-t border-white/5 pt-6 pb-8">
+              <p className="text-[#6b6b80] text-sm max-w-xl">
+                Web data is fetched from official Claude Help Center promotion pages and converted
+                into local-time peak and off-peak windows.
+              </p>
+            </footer>
+          </>
+        ) : (
+          <div className="rounded-lg bg-[#111118] border border-white/[0.06] p-6">
+            <p className="text-[#6b6b80] font-['JetBrains_Mono'] text-sm">
+              Syncing official promotion data...
+            </p>
           </div>
-        </footer>
+        )}
       </div>
     </div>
   );

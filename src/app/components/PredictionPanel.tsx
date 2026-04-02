@@ -9,7 +9,7 @@ interface PredictionPanelProps {
 }
 
 const CountdownUnit = ({ value, label }: { value: string; label: string }) => (
-  <div className="flex flex-col items-center">
+  <div className="flex flex-col items-start">
     <span className="font-['JetBrains_Mono'] text-3xl md:text-4xl text-[#e2e2e8] tabular-nums">
       {value}
     </span>
@@ -106,7 +106,7 @@ export function PredictionPanel({ forecast }: PredictionPanelProps) {
       </div>
 
       <div className="bg-[#0a0a0f] rounded-md p-5 border border-white/[0.04]">
-        <div className="flex items-center justify-center gap-6">
+        <div className="flex items-center justify-start gap-6">
           <CountdownUnit value={parts.days} label="days" />
           <span className="text-[#c4a1ff]/40 font-['JetBrains_Mono'] text-2xl mb-4">:</span>
           <CountdownUnit value={parts.hours} label="hrs" />
@@ -116,7 +116,7 @@ export function PredictionPanel({ forecast }: PredictionPanelProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ForecastMiniCard forecast={forecast.nextPeak} title="Next Peak Return" />
+        <ForecastMiniCard forecast={forecast.nextPeak} title="Next Peak Start" />
         <ForecastMiniCard forecast={forecast.campaign} title="Next Public Promo Campaign" />
       </div>
 

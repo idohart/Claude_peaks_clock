@@ -53,7 +53,7 @@ export function ClockDisplay({ currentTime, status, sourceLabel, timezone }: Clo
         <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono']">{timezone}</p>
 
         <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-3">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col items-start gap-2">
             <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
               Official Status
             </span>
@@ -68,7 +68,7 @@ export function ClockDisplay({ currentTime, status, sourceLabel, timezone }: Clo
                   style={{ backgroundColor: officialColor }}
                 />
               </span>
-              <div className="text-right">
+              <div>
                 <p className="text-xs font-['JetBrains_Mono']" style={{ color: officialColor }}>
                   {status.officialLabel}
                 </p>
@@ -77,11 +77,11 @@ export function ClockDisplay({ currentTime, status, sourceLabel, timezone }: Clo
             </div>
           </div>
 
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col items-start gap-2">
             <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
               Historical Pattern
             </span>
-            <div className="text-right">
+            <div>
               <p className="text-xs font-['JetBrains_Mono']" style={{ color: patternColor }}>
                 {status.patternLabel} ({status.patternUsage}%)
               </p>

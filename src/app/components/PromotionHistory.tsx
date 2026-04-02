@@ -21,12 +21,9 @@ export function PromotionHistory({ history }: PromotionHistoryProps) {
 
       <div className="flex flex-col gap-3">
         {history.map((entry) => (
-          <a
+          <div
             className="rounded-md bg-[#0a0a0f] border border-white/[0.06] p-4 hover:border-[#c4a1ff]/20 transition-colors flex flex-wrap items-center justify-between gap-x-6 gap-y-2"
-            href={entry.sourceUrl}
             key={entry.id}
-            rel="noreferrer"
-            target="_blank"
           >
             <div className="flex items-center gap-4">
               <div>
@@ -60,7 +57,7 @@ export function PromotionHistory({ history }: PromotionHistoryProps) {
                 <span className="text-[#c4a1ff]">{entry.duration}</span>
               </div>
             </div>
-          </a>
+          </div>
         ))}
       </div>
     </div>

@@ -94,7 +94,7 @@ export function WeeklyHeatmap({ data }: WeeklyHeatmapProps) {
         </div>
       </div>
 
-      <div className="mt-5 flex items-center justify-center gap-4 text-[10px] font-['JetBrains_Mono'] text-[#6b6b80]">
+      <div className="mt-5 flex items-center justify-start gap-4 text-[10px] font-['JetBrains_Mono'] text-[#6b6b80]">
         <span>0%</span>
         <div
           className="w-24 h-3 rounded-[2px]"
@@ -104,7 +104,7 @@ export function WeeklyHeatmap({ data }: WeeklyHeatmapProps) {
         />
         <span>100%</span>
       </div>
-      <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] mt-3 text-center">
+      <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] mt-3">
         Real official windows only, ordered from 6 days ago to today
       </p>
     </div>
