@@ -9,6 +9,9 @@ Vite, React 19, TypeScript, Express 5, Luxon, Tailwind CSS 4, Recharts
 ## Architecture
 [architecture.md](/c:/ido%20harti/Script/claude%20promotion%20times/docs/architecture.md)
 
+## Data And Forecasting
+[data-and-forecasting.md](/c:/ido%20harti/Script/claude%20promotion%20times/docs/data-and-forecasting.md)
+
 ## Conventions
 [conventions.md](/c:/ido%20harti/Script/claude%20promotion%20times/docs/conventions.md)
 

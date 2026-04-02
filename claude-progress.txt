@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 5
+# Sessions since last maintenance: 6
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -71,3 +71,8 @@
 - Added an explicit 'Off-Peak Now' answer to the clock panel so users do not need to infer the current phase from the forecast cards
 - Wired the current-phase answer to use the official live window when one exists and otherwise fall back to the current historical phase estimate
 - Tested: npm run check and direct dashboard-model inspection showing the clock currently reports 'No, Likely Peak Now' outside an official promotion
+
+## Session 12
+- Added docs/data-and-forecasting.md documenting the exact fetch pipeline, parser shapes, window expansion rules, campaign estimate, and near-term hour scoring logic
+- Linked the new data-and-forecasting doc from docs/MAP.md
+- Issues: there is still an unrelated untracked `index.zip` in the repo root that was not touched in this session
