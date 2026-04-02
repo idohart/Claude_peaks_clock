@@ -10,6 +10,8 @@ import type {
 } from '../src/types/promotion';
 
 const SUPPORT_SITEMAP_URL = 'https://support.claude.com/sitemap.xml';
+const HOLIDAY_API_BASE_URL = 'https://date.nager.at/api/v3/PublicHolidays';
+const HOLIDAY_COUNTRY_CODE = 'US';
 const SOURCE_LABEL = 'Official Claude Help Center promotion pages';
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -40,6 +42,15 @@ interface PhaseProbabilityModel {
   offPeakBySlot: number[][];
   peakBySlot: number[][];
   slotSupport: number[][];
+  offPeakByWeekdayHour: number[];
+  peakByWeekdayHour: number[];
+  weekdayHourSupport: number[];
+  offPeakByWeekendHour: number[];
+  peakByWeekendHour: number[];
+  weekendHourSupport: number[];
+  offPeakByHolidayHour: number[];
+  peakByHolidayHour: number[];
+  holidayHourSupport: number[];
   offPeakByHour: number[];
   peakByHour: number[];
   hourSupport: number[];
@@ -49,6 +60,7 @@ interface PhaseProbabilityModel {
 }
 
 let cachedSnapshot: CachedSnapshot | null = null;
+const holidayCacheByYear = new Map<number, Set<string>>();
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -66,6 +78,20 @@ async function fetchText(url: string): Promise<string> {
   }
 
   return response.text();
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    headers: {
+      'user-agent': 'ClaudePromotionClock/1.0',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
 }
 
 function normalizeWhitespace(value: string): string {
@@ -220,6 +246,36 @@ function forEachOverlappingHour(
 
 function getPhaseLabel(phase: PromotionPhase): string {
   return phase === 'off_peak' ? 'Off-Peak' : 'Peak';
+}
+
+function isHoliday(dateTime: DateTime, holidayDates: Set<string>): boolean {
+  const isoDate = dateTime.toISODate();
+  return isoDate ? holidayDates.has(isoDate) : false;
+}
+
+async function getHolidayDatesForYear(year: number): Promise<Set<string>> {
+  const cached = holidayCacheByYear.get(year);
+  if (cached) {
+    return cached;
+  }
+
+  const holidays = await fetchJson<Array<{ date: string; global?: boolean; counties?: string[] | null }>>(
+    `${HOLIDAY_API_BASE_URL}/${year}/${HOLIDAY_COUNTRY_CODE}`,
+  );
+  const holidayDates = new Set(
+    holidays
+      .filter((holiday) => holiday.global !== false || !holiday.counties || holiday.counties.length === 0)
+      .map((holiday) => holiday.date),
+  );
+
+  holidayCacheByYear.set(year, holidayDates);
+  return holidayDates;
+}
+
+async function getHolidayDates(years: number[]): Promise<Set<string>> {
+  const uniqueYears = [...new Set(years)].sort((left, right) => left - right);
+  const yearSets = await Promise.all(uniqueYears.map((year) => getHolidayDatesForYear(year)));
+  return new Set(yearSets.flatMap((yearSet) => [...yearSet]));
 }
 
 function expandWindows(campaign: PromotionCampaign, rule: ScheduleRule): PromotionWindow[] {
@@ -453,12 +509,22 @@ function buildCampaignForecast(
 function buildPhaseProbabilityModel(
   campaigns: PromotionCampaign[],
   windows: PromotionWindow[],
+  holidayDates: Set<string>,
 ): PhaseProbabilityModel {
   const canonicalZone = 'America/New_York';
   const sortedCampaigns = [...campaigns].sort((left, right) => left.startsAtUtc.localeCompare(right.startsAtUtc));
   const offPeakBySlot = createDayHourMatrix();
   const peakBySlot = createDayHourMatrix();
   const slotSupport = createDayHourMatrix();
+  const offPeakByWeekdayHour = createHourArray();
+  const peakByWeekdayHour = createHourArray();
+  const weekdayHourSupport = createHourArray();
+  const offPeakByWeekendHour = createHourArray();
+  const peakByWeekendHour = createHourArray();
+  const weekendHourSupport = createHourArray();
+  const offPeakByHolidayHour = createHourArray();
+  const peakByHolidayHour = createHourArray();
+  const holidayHourSupport = createHourArray();
   const offPeakByHour = createHourArray();
   const peakByHour = createHourArray();
   const hourSupport = createHourArray();
@@ -472,6 +538,15 @@ function buildPhaseProbabilityModel(
     const totalBySlot = createDayHourMatrix();
     const offPeakHoursBySlot = createDayHourMatrix();
     const peakHoursBySlot = createDayHourMatrix();
+    const totalByWeekdayHour = createHourArray();
+    const offPeakHoursByWeekdayHour = createHourArray();
+    const peakHoursByWeekdayHour = createHourArray();
+    const totalByWeekendHour = createHourArray();
+    const offPeakHoursByWeekendHour = createHourArray();
+    const peakHoursByWeekendHour = createHourArray();
+    const totalByHolidayHour = createHourArray();
+    const offPeakHoursByHolidayHour = createHourArray();
+    const peakHoursByHolidayHour = createHourArray();
     const totalByHour = createHourArray();
     const offPeakHoursByHour = createHourArray();
     const peakHoursByHour = createHourArray();
@@ -488,19 +563,51 @@ function buildPhaseProbabilityModel(
         forEachOverlappingHour(startedAt, endedAt, (cursor, overlapHours) => {
           const dayIndex = cursor.weekday - 1;
           const hour = cursor.hour;
+          const weekend = cursor.weekday >= 6;
+          const holiday = isHoliday(cursor, holidayDates);
 
           totalBySlot[dayIndex][hour] += overlapHours;
           totalByHour[hour] += overlapHours;
           totalHours += overlapHours;
 
+          if (weekend) {
+            totalByWeekendHour[hour] += overlapHours;
+          } else {
+            totalByWeekdayHour[hour] += overlapHours;
+          }
+
+          if (holiday) {
+            totalByHolidayHour[hour] += overlapHours;
+          }
+
           if (window.phase === 'off_peak') {
             offPeakHoursBySlot[dayIndex][hour] += overlapHours;
             offPeakHoursByHour[hour] += overlapHours;
             totalOffPeakHours += overlapHours;
+
+            if (weekend) {
+              offPeakHoursByWeekendHour[hour] += overlapHours;
+            } else {
+              offPeakHoursByWeekdayHour[hour] += overlapHours;
+            }
+
+            if (holiday) {
+              offPeakHoursByHolidayHour[hour] += overlapHours;
+            }
           } else {
             peakHoursBySlot[dayIndex][hour] += overlapHours;
             peakHoursByHour[hour] += overlapHours;
             totalPeakHours += overlapHours;
+
+            if (weekend) {
+              peakHoursByWeekendHour[hour] += overlapHours;
+            } else {
+              peakHoursByWeekdayHour[hour] += overlapHours;
+            }
+
+            if (holiday) {
+              peakHoursByHolidayHour[hour] += overlapHours;
+            }
           }
         });
       });
@@ -536,6 +643,24 @@ function buildPhaseProbabilityModel(
       offPeakByHour[hour] += (offPeakHoursByHour[hour] / totalByHour[hour]) * weight;
       peakByHour[hour] += (peakHoursByHour[hour] / totalByHour[hour]) * weight;
       hourSupport[hour] += weight;
+
+      if (totalByWeekdayHour[hour] > 0) {
+        offPeakByWeekdayHour[hour] += (offPeakHoursByWeekdayHour[hour] / totalByWeekdayHour[hour]) * weight;
+        peakByWeekdayHour[hour] += (peakHoursByWeekdayHour[hour] / totalByWeekdayHour[hour]) * weight;
+        weekdayHourSupport[hour] += weight;
+      }
+
+      if (totalByWeekendHour[hour] > 0) {
+        offPeakByWeekendHour[hour] += (offPeakHoursByWeekendHour[hour] / totalByWeekendHour[hour]) * weight;
+        peakByWeekendHour[hour] += (peakHoursByWeekendHour[hour] / totalByWeekendHour[hour]) * weight;
+        weekendHourSupport[hour] += weight;
+      }
+
+      if (totalByHolidayHour[hour] > 0) {
+        offPeakByHolidayHour[hour] += (offPeakHoursByHolidayHour[hour] / totalByHolidayHour[hour]) * weight;
+        peakByHolidayHour[hour] += (peakHoursByHolidayHour[hour] / totalByHolidayHour[hour]) * weight;
+        holidayHourSupport[hour] += weight;
+      }
     }
   });
 
@@ -553,12 +678,36 @@ function buildPhaseProbabilityModel(
       offPeakByHour[hour] /= hourSupport[hour];
       peakByHour[hour] /= hourSupport[hour];
     }
+
+    if (weekdayHourSupport[hour] > 0) {
+      offPeakByWeekdayHour[hour] /= weekdayHourSupport[hour];
+      peakByWeekdayHour[hour] /= weekdayHourSupport[hour];
+    }
+
+    if (weekendHourSupport[hour] > 0) {
+      offPeakByWeekendHour[hour] /= weekendHourSupport[hour];
+      peakByWeekendHour[hour] /= weekendHourSupport[hour];
+    }
+
+    if (holidayHourSupport[hour] > 0) {
+      offPeakByHolidayHour[hour] /= holidayHourSupport[hour];
+      peakByHolidayHour[hour] /= holidayHourSupport[hour];
+    }
   }
 
   return {
     offPeakBySlot,
     peakBySlot,
     slotSupport,
+    offPeakByWeekdayHour,
+    peakByWeekdayHour,
+    weekdayHourSupport,
+    offPeakByWeekendHour,
+    peakByWeekendHour,
+    weekendHourSupport,
+    offPeakByHolidayHour,
+    peakByHolidayHour,
+    holidayHourSupport,
     offPeakByHour,
     peakByHour,
     hourSupport,
@@ -571,25 +720,40 @@ function buildPhaseProbabilityModel(
 function getPhaseScores(
   model: PhaseProbabilityModel,
   atUtc: DateTime,
+  holidayDates: Set<string>,
 ): { offPeak: number; peak: number; support: number } {
   const referenceTime = atUtc.setZone('America/New_York');
   const dayIndex = referenceTime.weekday - 1;
   const hour = referenceTime.hour;
+  const weekend = referenceTime.weekday >= 6;
+  const holiday = isHoliday(referenceTime, holidayDates);
   const slotSupport = model.slotSupport[dayIndex][hour];
+  const contextSupport = weekend ? model.weekendHourSupport[hour] : model.weekdayHourSupport[hour];
   const hourSupport = model.hourSupport[hour];
-  const slotWeight = slotSupport > 0 ? 0.6 : 0;
-  const hourWeight = hourSupport > 0 ? (slotSupport > 0 ? 0.25 : 0.7) : 0;
-  const globalWeight = 1 - slotWeight - hourWeight;
+  const holidaySupport = holiday ? model.holidayHourSupport[hour] : 0;
+  const slotWeight = slotSupport > 0 ? 0.4 : 0;
+  const contextWeight = contextSupport > 0 ? (slotSupport > 0 ? 0.3 : 0.5) : 0;
+  const holidayWeight = holidaySupport > 0 ? 0.2 : 0;
+  const hourWeight = hourSupport > 0 ? (slotSupport > 0 ? 0.1 : 0.2) : 0;
+  const globalWeight = 1 - slotWeight - contextWeight - holidayWeight - hourWeight;
   const normalizedSupport =
-    model.totalWeight > 0 ? Math.max(slotSupport, hourSupport) / model.totalWeight : 0;
+    model.totalWeight > 0
+      ? Math.max(slotSupport, contextSupport, holidaySupport, hourSupport) / model.totalWeight
+      : 0;
+  const contextOffPeak = weekend ? model.offPeakByWeekendHour[hour] : model.offPeakByWeekdayHour[hour];
+  const contextPeak = weekend ? model.peakByWeekendHour[hour] : model.peakByWeekdayHour[hour];
 
   return {
     offPeak:
       slotWeight * model.offPeakBySlot[dayIndex][hour] +
+      contextWeight * contextOffPeak +
+      holidayWeight * model.offPeakByHolidayHour[hour] +
       hourWeight * model.offPeakByHour[hour] +
       globalWeight * model.offPeakGlobal,
     peak:
       slotWeight * model.peakBySlot[dayIndex][hour] +
+      contextWeight * contextPeak +
+      holidayWeight * model.peakByHolidayHour[hour] +
       hourWeight * model.peakByHour[hour] +
       globalWeight * model.peakGlobal,
     support: clamp(normalizedSupport, 0, 1),
@@ -631,6 +795,7 @@ function findOfficialPhaseForecast(
 function inferPhaseForecast(
   campaignForecast: NonNullable<PromotionForecast['campaign']>,
   model: PhaseProbabilityModel,
+  holidayDates: Set<string>,
   phase: PromotionPhase,
   nowUtc: DateTime,
 ): PromotionForecast['nextOffPeak'] {
@@ -643,7 +808,7 @@ function inferPhaseForecast(
   let cursor = (nowUtc > campaignStart ? nowUtc : campaignStart).startOf('hour');
 
   while (cursor < campaignEnd) {
-    const currentScores = getPhaseScores(model, cursor);
+    const currentScores = getPhaseScores(model, cursor, holidayDates);
     const dominantPhase = currentScores.offPeak >= currentScores.peak ? 'off_peak' : 'peak';
 
     if (dominantPhase === phase) {
@@ -655,7 +820,7 @@ function inferPhaseForecast(
       let samples = 0;
 
       while (runEnd < campaignEnd) {
-        const runScores = getPhaseScores(model, runEnd);
+        const runScores = getPhaseScores(model, runEnd, holidayDates);
         const runDominantPhase = runScores.offPeak >= runScores.peak ? 'off_peak' : 'peak';
         if (runDominantPhase !== phase) {
           break;
@@ -686,7 +851,7 @@ function inferPhaseForecast(
         endsAtUtc: runEnd.toUTC().toISO() ?? runEnd.toString(),
         confidence,
         explanation: `Inferred from weekday and hour patterns inside previous official ${getPhaseLabel(phase)} windows.`,
-        basis: 'Estimated campaign window plus ET weekday/hour phase probabilities',
+        basis: 'Estimated campaign window plus ET day-of-week, weekend, hour, and US public holiday phase probabilities',
       };
     }
 
@@ -699,6 +864,7 @@ function inferPhaseForecast(
 function buildForecast(
   campaigns: PromotionCampaign[],
   windows: PromotionWindow[],
+  holidayDates: Set<string>,
   nowUtc: DateTime,
 ): PromotionForecast | null {
   const campaignForecast = buildCampaignForecast(campaigns, nowUtc);
@@ -724,12 +890,12 @@ function buildForecast(
     };
   }
 
-  const model = buildPhaseProbabilityModel(campaigns, windows);
+  const model = buildPhaseProbabilityModel(campaigns, windows, holidayDates);
 
   return {
     campaign: campaignForecast,
-    nextOffPeak: inferPhaseForecast(campaignForecast, model, 'off_peak', nowUtc),
-    nextPeak: inferPhaseForecast(campaignForecast, model, 'peak', nowUtc),
+    nextOffPeak: inferPhaseForecast(campaignForecast, model, holidayDates, 'off_peak', nowUtc),
+    nextPeak: inferPhaseForecast(campaignForecast, model, holidayDates, 'peak', nowUtc),
   };
 }
 
@@ -747,6 +913,26 @@ async function buildPromotionSnapshot(): Promise<PromotionSnapshotResponse> {
     .flatMap((bundle) => bundle.windows)
     .sort((left, right) => left.startedAtUtc.localeCompare(right.startedAtUtc));
   const nowUtc = DateTime.utc();
+  const campaignForecast = buildCampaignForecast(campaigns, nowUtc);
+  const relevantYears = new Set<number>();
+
+  campaigns.forEach((campaign) => {
+    relevantYears.add(DateTime.fromISO(campaign.startsAtUtc, { zone: 'utc' }).setZone('America/New_York').year);
+    relevantYears.add(DateTime.fromISO(campaign.endsAtUtc, { zone: 'utc' }).setZone('America/New_York').year);
+  });
+
+  if (campaignForecast) {
+    relevantYears.add(
+      DateTime.fromISO(campaignForecast.startsAtUtc, { zone: 'utc' }).setZone('America/New_York').year,
+    );
+    if (campaignForecast.endsAtUtc) {
+      relevantYears.add(
+        DateTime.fromISO(campaignForecast.endsAtUtc, { zone: 'utc' }).setZone('America/New_York').year,
+      );
+    }
+  }
+
+  const holidayDates = await getHolidayDates([...relevantYears]);
 
   return {
     fetchedAtUtc: nowUtc.toISO() ?? nowUtc.toString(),
@@ -754,7 +940,7 @@ async function buildPromotionSnapshot(): Promise<PromotionSnapshotResponse> {
     sourceUrls,
     campaigns,
     windows,
-    forecast: buildForecast(campaigns, windows, nowUtc),
+    forecast: buildForecast(campaigns, windows, holidayDates, nowUtc),
   };
 }
 

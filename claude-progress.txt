@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 2
+# Sessions since last maintenance: 3
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -23,3 +23,8 @@
 - Kept exact official windows whenever a promotion is active, and only fall back to history-based inference when the campaign itself is estimated
 - Added an ET weekday/hour probability model over historical official windows and surfaced the new signals in the forecast panel
 - Tested: npm run check and direct snapshot inspection showing campaign, nextOffPeak, and nextPeak forecast outputs
+
+## Session 4
+- Added US public holiday context to the hourly forecaster using a live holiday API
+- Extended the phase model so future off-peak and peak estimates are weighted by ET day-of-week, weekend, hour, and holiday signals
+- Tested: npm run check and direct snapshot inspection confirming the new holiday-aware forecast basis

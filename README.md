@@ -36,7 +36,7 @@ The backend scrapes official promotion campaign pages and normalizes them into:
 - `forecast.nextOffPeak`: the next exact official off-peak window when a campaign is live, otherwise a history-inferred hourly off-peak prediction inside the estimated campaign
 - `forecast.nextPeak`: the next exact official peak window when a campaign is live, otherwise a history-inferred hourly peak prediction inside the estimated campaign
 
-The hour-level inference is computed from real official promotion history, but it is only as strong as the number of campaigns currently published on the Help Center. With a small campaign sample, confidence stays intentionally low.
+The hour-level inference is computed from real official promotion history using ET day-of-week, weekend, hour, and US public holiday context, but it is only as strong as the number of campaigns currently published on the Help Center. With a small campaign sample, confidence stays intentionally low.
 
 ## Design Reference
 

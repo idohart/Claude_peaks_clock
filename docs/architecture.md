@@ -1,7 +1,7 @@
 # Architecture
 
 ## Purpose
-The app is a web-backed dashboard. An Express service scrapes official Claude Help Center promotion pages, normalizes them into UTC campaign windows, derives campaign-level and hour-level forecasts, and the React client converts those windows into the viewer's timezone for a real-time dashboard.
+The app is a web-backed dashboard. An Express service scrapes official Claude Help Center promotion pages, fetches US public holiday context, normalizes campaigns into UTC windows, derives campaign-level and hour-level forecasts, and the React client converts those windows into the viewer's timezone for a real-time dashboard.
 
 ## Layers
 `src/types` -> shared contracts only
