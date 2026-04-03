@@ -7,6 +7,7 @@ import { DateTime } from 'luxon';
 import {
   PERMANENT_WEEKDAY_PEAK_BASELINE,
   type ClaudeStatusSummary,
+  type HourlyScore,
   type PromotionManualOverride,
   type PromotionParseWarning,
   PromotionCampaign,
@@ -1069,11 +1070,11 @@ function inferNearTermPhaseForecast(
 function buildForecast(
   campaigns: PromotionCampaign[],
   windows: PromotionWindow[],
+  model: PhaseProbabilityModel,
   holidayDates: Set<string>,
   nowUtc: DateTime,
 ): PromotionForecast | null {
   const campaignForecast = buildCampaignForecast(campaigns, nowUtc);
-  const model = buildPhaseProbabilityModel(campaigns, windows, holidayDates);
 
   if (campaignForecast?.kind === 'official_campaign') {
     const activeCampaignIds = new Set(
@@ -1098,6 +1099,40 @@ function buildForecast(
     nextOffPeak: inferNearTermPhaseForecast(model, holidayDates, 'off_peak', nowUtc, true),
     nextPeak: inferNearTermPhaseForecast(model, holidayDates, 'peak', nowUtc, false),
   };
+}
+
+function buildHourlyScores(
+  model: PhaseProbabilityModel,
+  windows: PromotionWindow[],
+  holidayDates: Set<string>,
+  nowUtc: DateTime,
+): HourlyScore[] {
+  const scores: HourlyScore[] = [];
+  let cursor = nowUtc.startOf('hour');
+  const horizon = cursor.plus({ hours: 24 });
+
+  while (cursor < horizon) {
+    const phaseScores = getPhaseScores(model, cursor, holidayDates);
+    const total = phaseScores.peak + phaseScores.offPeak;
+    const peakProbability = total > 0 ? phaseScores.peak / total : 0.5;
+
+    const officialWindow = windows.find((w) => {
+      const s = DateTime.fromISO(w.startedAtUtc, { zone: 'utc' });
+      const e = DateTime.fromISO(w.endedAtUtc, { zone: 'utc' });
+      return cursor >= s && cursor < e;
+    });
+
+    scores.push({
+      hourUtc: cursor.toISO() ?? cursor.toString(),
+      peakProbability: Math.round(peakProbability * 100) / 100,
+      support: Math.round(phaseScores.support * 100) / 100,
+      officialPhase: officialWindow?.phase ?? null,
+    });
+
+    cursor = cursor.plus({ hours: 1 });
+  }
+
+  return scores;
 }
 
 async function buildPromotionSnapshot(): Promise<PromotionSnapshotResponse> {
@@ -1160,13 +1195,16 @@ async function buildPromotionSnapshot(): Promise<PromotionSnapshotResponse> {
     );
   }
 
+  const model = buildPhaseProbabilityModel(campaigns, windows, holidayDates);
+
   return {
     fetchedAtUtc: nowUtc.toISO() ?? nowUtc.toString(),
     sourceLabel: SOURCE_LABEL,
     sourceUrls,
     campaigns,
     windows,
-    forecast: buildForecast(campaigns, windows, holidayDates, nowUtc),
+    forecast: buildForecast(campaigns, windows, model, holidayDates, nowUtc),
+    hourlyScores: buildHourlyScores(model, windows, holidayDates, nowUtc),
     parseWarnings,
     statusPage,
     manualOverride,

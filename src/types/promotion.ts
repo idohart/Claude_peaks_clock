@@ -85,6 +85,13 @@ export interface PromotionManualOverride {
   updatedAtUtc: string | null;
 }
 
+export interface HourlyScore {
+  hourUtc: string;
+  peakProbability: number;
+  support: number;
+  officialPhase: PromotionPhase | null;
+}
+
 export interface PromotionSnapshotResponse {
   fetchedAtUtc: string;
   sourceLabel: string;
@@ -92,6 +99,7 @@ export interface PromotionSnapshotResponse {
   campaigns: PromotionCampaign[];
   windows: PromotionWindow[];
   forecast: PromotionForecast | null;
+  hourlyScores: HourlyScore[];
   parseWarnings: PromotionParseWarning[];
   statusPage: ClaudeStatusSummary | null;
   manualOverride: PromotionManualOverride | null;
@@ -131,22 +139,13 @@ export interface ClockStatus {
   platformDetail: string;
 }
 
-export interface BestTimeRecommendation {
-  label: string;
-  startHour: number;
-  endHour: number;
-  reason: string;
-  quality: 'great' | 'good' | 'fair';
-}
-
-export interface BaselineHour {
+export interface HourlyScoreLocal {
   hour: number;
-  isPeak: boolean;
-}
-
-export interface BaselineDay {
-  dayLabel: string;
-  hours: BaselineHour[];
+  label: string;
+  peakProbability: number;
+  support: number;
+  officialPhase: PromotionPhase | null;
+  isCurrent: boolean;
 }
 
 export interface CampaignSummary {
@@ -167,12 +166,9 @@ export interface DashboardNotice {
 
 export interface DashboardViewModel {
   sourceLabel: string;
-  sourceUrls: string[];
-  sourceLinks: Array<{ url: string; label: string }>;
   timezone: string;
   notices: DashboardNotice[];
-  baselineSchedule: BaselineDay[];
-  bestTimes: BestTimeRecommendation[];
+  hourlyScores: HourlyScoreLocal[];
   forecast: ForecastViewModel | null;
   campaignHistory: CampaignSummary[];
   currentStatus: ClockStatus;
