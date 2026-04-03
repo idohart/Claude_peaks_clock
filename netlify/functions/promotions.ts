@@ -1,26 +1,9 @@
-import { getPromotionSnapshot } from '../../server/promotionWebData';
+import { handlePromotions } from '../../server/handlers';
 
 export default async function handler(): Promise<Response> {
-  try {
-    const snapshot = await getPromotionSnapshot();
-    return new Response(JSON.stringify(snapshot), {
-      headers: {
-        'Cache-Control': 'public, max-age=300',
-        'Content-Type': 'application/json',
-      },
-    });
-  } catch (error) {
-    return new Response(
-      JSON.stringify({
-        error: 'promotion_fetch_failed',
-        message: error instanceof Error ? error.message : String(error),
-      }),
-      {
-        status: 502,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
-    );
-  }
+  const result = await handlePromotions();
+  return new Response(JSON.stringify(result.body), {
+    status: result.status,
+    headers: result.headers,
+  });
 }

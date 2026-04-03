@@ -82,6 +82,7 @@ interface PhaseProbabilityModel {
 }
 
 let cachedSnapshot: CachedSnapshot | null = null;
+let pendingRefresh: Promise<PromotionSnapshotResponse> | null = null;
 const holidayCacheByYear = new Map<number, Set<string>>();
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -1216,11 +1217,18 @@ export async function getPromotionSnapshot(): Promise<PromotionSnapshotResponse>
     return cachedSnapshot.snapshot;
   }
 
-  const snapshot = await buildPromotionSnapshot();
-  cachedSnapshot = {
-    expiresAt: Date.now() + CACHE_TTL_MS,
-    snapshot,
-  };
+  if (pendingRefresh) {
+    return pendingRefresh;
+  }
 
-  return snapshot;
+  pendingRefresh = buildPromotionSnapshot()
+    .then((snapshot) => {
+      cachedSnapshot = { expiresAt: Date.now() + CACHE_TTL_MS, snapshot };
+      return snapshot;
+    })
+    .finally(() => {
+      pendingRefresh = null;
+    });
+
+  return pendingRefresh;
 }

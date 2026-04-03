@@ -21,30 +21,30 @@ export function ClockDisplay({ currentTime, status, timezone }: ClockDisplayProp
   return (
     <div className="h-full rounded-lg bg-[#111118] border border-white/[0.06] p-6 flex flex-col justify-between">
       <div className="flex items-baseline justify-between">
-        <span className="text-[#6b6b80] text-[10px] font-['JetBrains_Mono'] uppercase tracking-widest">
+        <span className="text-[#8b8ba0] text-[10px] font-['JetBrains_Mono'] uppercase tracking-widest">
           {timezone}
         </span>
-        <span className="text-[#6b6b80] text-[10px] font-['JetBrains_Mono']">
+        <span className="text-[#8b8ba0] text-[10px] font-['JetBrains_Mono']">
           {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
         </span>
       </div>
 
       <div className="py-5">
         <div className="font-['JetBrains_Mono'] text-5xl md:text-6xl text-[#e2e2e8] tracking-tight tabular-nums">
-          {hours}<span className="text-[#c4a1ff] animate-pulse">:</span>{minutes}<span className="text-[#c4a1ff] animate-pulse">:</span><span className="text-[#6b6b80]">{seconds}</span>
+          {hours}<span className="text-[#c4a1ff] motion-safe:animate-pulse">:</span>{minutes}<span className="text-[#c4a1ff] motion-safe:animate-pulse">:</span><span className="text-[#8b8ba0]">{seconds}</span>
         </div>
       </div>
 
       <div className="space-y-3 border-t border-white/[0.06] pt-3">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: phaseColor }} />
+            <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: phaseColor }} />
             <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: phaseColor }} />
           </span>
           <span className="text-sm font-['JetBrains_Mono'] font-medium" style={{ color: phaseColor }}>
             {status.phaseLabel}
           </span>
-          <span className="text-[#6b6b80] text-[11px] ml-auto">{status.phaseSource}</span>
+          <span className="text-[#8b8ba0] text-[11px] ml-auto">{status.phaseSource}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -53,7 +53,7 @@ export function ClockDisplay({ currentTime, status, timezone }: ClockDisplayProp
             {status.platformLabel}
           </span>
           {status.platformDetail ? (
-            <span className="text-[#6b6b80] text-[11px] ml-auto truncate max-w-[200px]">{status.platformDetail}</span>
+            <span className="text-[#8b8ba0] text-[11px] ml-auto truncate max-w-[200px]">{status.platformDetail}</span>
           ) : null}
         </div>
       </div>

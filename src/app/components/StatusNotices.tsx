@@ -48,7 +48,7 @@ export function StatusNotices({ notices }: StatusNoticesProps) {
                 {notice.tone}
               </span>
             </div>
-            <p className="text-[#6b6b80] text-sm mt-3 leading-relaxed">{notice.detail}</p>
+            <p className="text-[#8b8ba0] text-sm mt-3 leading-relaxed">{notice.detail}</p>
           </div>
         );
       })}

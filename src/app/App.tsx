@@ -54,12 +54,12 @@ export default function App() {
               <h1 className="text-[#e2e2e8] font-['JetBrains_Mono'] text-2xl md:text-3xl tracking-tight">
                 Claude Code <span className="text-[#c4a1ff]">Clock</span>
               </h1>
-              <p className="text-[#6b6b80] text-sm mt-1">Peak/off-peak status and demand forecast</p>
+              <p className="text-[#8b8ba0] text-sm mt-1">Peak/off-peak status and demand forecast</p>
             </div>
             <div className="flex items-center gap-3">
               {dashboard ? (
                 <>
-                  <span className="text-[#6b6b80]/50 text-[11px] font-['JetBrains_Mono']">{dashboard.sourceLabel}</span>
+                  <span className="text-[#8b8ba0]/50 text-[11px] font-['JetBrains_Mono']">{dashboard.sourceLabel}</span>
                   <NotificationToggle status={dashboard.currentStatus} />
                 </>
               ) : null}
@@ -91,7 +91,7 @@ export default function App() {
           </>
         ) : (
           <div className="rounded-lg bg-[#111118] border border-white/[0.06] p-6">
-            <p className="text-[#6b6b80] font-['JetBrains_Mono'] text-sm">Loading...</p>
+            <p className="text-[#8b8ba0] font-['JetBrains_Mono'] text-sm">Loading...</p>
           </div>
         )}
       </div>

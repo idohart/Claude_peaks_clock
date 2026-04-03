@@ -13,7 +13,7 @@ const CountdownUnit = ({ value, label }: { value: string; label: string }) => (
     <span className="font-['JetBrains_Mono'] text-3xl md:text-4xl text-[#e2e2e8] tabular-nums">
       {value}
     </span>
-    <span className="text-[#6b6b80] text-[10px] font-['JetBrains_Mono'] uppercase tracking-widest mt-1">
+    <span className="text-[#8b8ba0] text-[10px] font-['JetBrains_Mono'] uppercase tracking-widest mt-1">
       {label}
     </span>
   </div>
@@ -41,8 +41,8 @@ function ForecastMiniCard({
   if (!forecast) {
     return (
       <div className="rounded-md bg-[#0a0a0f] border border-white/[0.04] p-4">
-        <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">{title}</p>
-        <p className="text-[#6b6b80]/70 text-sm mt-3">No prediction available in the current forecast range.</p>
+        <p className="text-[#8b8ba0] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">{title}</p>
+        <p className="text-[#8b8ba0]/70 text-sm mt-3">No prediction available in the current forecast range.</p>
       </div>
     );
   }
@@ -52,7 +52,7 @@ function ForecastMiniCard({
   return (
     <div className="rounded-md bg-[#0a0a0f] border border-white/[0.04] p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">{title}</p>
+        <p className="text-[#8b8ba0] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">{title}</p>
         <span className="text-[10px] font-['JetBrains_Mono'] uppercase tracking-wider text-[#c4a1ff] bg-[#c4a1ff]/10 px-2 py-0.5 rounded">
           {Math.round(forecast.confidence * 100)}%
         </span>
@@ -61,7 +61,7 @@ function ForecastMiniCard({
         <p className="text-[#e2e2e8] font-['JetBrains_Mono'] text-sm">{dateLabel}</p>
         <p className="text-[#c4a1ff] font-['JetBrains_Mono'] text-lg">{timeLabel ?? ''}</p>
       </div>
-      <p className="text-[#6b6b80]/70 text-xs font-['JetBrains_Mono']">{forecast.kindLabel}</p>
+      <p className="text-[#8b8ba0]/70 text-xs font-['JetBrains_Mono']">{forecast.kindLabel}</p>
     </div>
   );
 }
@@ -71,11 +71,11 @@ export function PredictionPanel({ forecast }: PredictionPanelProps) {
     return (
       <div className="h-full rounded-lg bg-[#111118] border border-white/[0.06] p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
+          <span className="text-[#8b8ba0] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
             Forecast Windows
           </span>
         </div>
-        <p className="text-[#6b6b80]">Not enough official campaign history to build an hourly estimate yet.</p>
+        <p className="text-[#8b8ba0]">Not enough official campaign history to build an hourly estimate yet.</p>
       </div>
     );
   }
@@ -87,7 +87,7 @@ export function PredictionPanel({ forecast }: PredictionPanelProps) {
   return (
     <div className="h-full rounded-lg bg-[#111118] border border-white/[0.06] p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
+        <span className="text-[#8b8ba0] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
           Next Off-Peak Window
         </span>
         <div className="flex items-center gap-3">
@@ -121,8 +121,8 @@ export function PredictionPanel({ forecast }: PredictionPanelProps) {
       </div>
 
       <div className="space-y-3">
-        <p className="text-[#6b6b80] text-sm border-l-2 border-[#c4a1ff]/30 pl-3">{primary.reason}</p>
-        <p className="text-[#6b6b80]/70 text-xs font-['JetBrains_Mono']">{primary.basis}</p>
+        <p className="text-[#8b8ba0] text-sm border-l-2 border-[#c4a1ff]/30 pl-3">{primary.reason}</p>
+        <p className="text-[#8b8ba0]/70 text-xs font-['JetBrains_Mono']">{primary.basis}</p>
       </div>
     </div>
   );

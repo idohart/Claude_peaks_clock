@@ -13,14 +13,14 @@ export function PromotionHistory({ campaigns }: PromotionHistoryProps) {
     <div className="rounded-lg bg-[#111118] border border-white/[0.06] p-6">
       <div className="flex items-baseline justify-between mb-5">
         <div>
-          <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
+          <span className="text-[#8b8ba0] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
             Campaign History
           </span>
-          <p className="text-[#6b6b80]/60 text-xs mt-1">
+          <p className="text-[#8b8ba0]/60 text-xs mt-1">
             Official Claude promotions discovered from the Help Center
           </p>
         </div>
-        <span className="text-[#6b6b80]/40 text-xs font-['JetBrains_Mono']">
+        <span className="text-[#8b8ba0]/40 text-xs font-['JetBrains_Mono']">
           {campaigns.length} campaign{campaigns.length === 1 ? '' : 's'}
         </span>
       </div>
@@ -40,7 +40,7 @@ export function PromotionHistory({ campaigns }: PromotionHistoryProps) {
                 <span className="text-[#e2e2e8] text-sm font-['JetBrains_Mono']">
                   {campaign.title}
                 </span>
-                <div className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] mt-0.5">
+                <div className="text-[#8b8ba0] text-xs font-['JetBrains_Mono'] mt-0.5">
                   {campaign.dateRange}
                 </div>
               </div>
@@ -50,7 +50,7 @@ export function PromotionHistory({ campaigns }: PromotionHistoryProps) {
                 </span>
               ) : null}
             </div>
-            <p className="text-[#6b6b80] text-xs">{campaign.scheduleSummary}</p>
+            <p className="text-[#8b8ba0] text-xs">{campaign.scheduleSummary}</p>
           </div>
         ))}
       </div>

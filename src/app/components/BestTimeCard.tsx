@@ -36,7 +36,7 @@ export function BestTimeCard({ scores }: BestTimeCardProps) {
   return (
     <div className="rounded-lg bg-[#111118] border border-white/[0.06] p-6">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
+        <span className="text-[#8b8ba0] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
           Next 24 Hours
         </span>
         {hovered ? (
@@ -45,12 +45,12 @@ export function BestTimeCard({ scores }: BestTimeCardProps) {
               {getLabel(hovered.peakProbability, hovered.officialPhase)}
             </span>
             {hovered.support > 0 && !hovered.officialPhase ? (
-              <span className="text-[#6b6b80] ml-2">({Math.round(hovered.peakProbability * 100)}% peak prob)</span>
+              <span className="text-[#8b8ba0] ml-2">({Math.round(hovered.peakProbability * 100)}% peak prob)</span>
             ) : null}
           </span>
         ) : (
           <span className="text-xs font-['JetBrains_Mono']">
-            <span className="text-[#6b6b80]">Best window: </span>
+            <span className="text-[#8b8ba0]">Best window: </span>
             <span style={{ color: bestColor }}>{bestHour.label}</span>
           </span>
         )}
@@ -79,7 +79,7 @@ export function BestTimeCard({ scores }: BestTimeCardProps) {
       <div className="flex mt-2">
         {scores.filter((_, i) => i % 3 === 0).map((score) => (
           <div
-            className="text-[10px] font-['JetBrains_Mono'] text-[#6b6b80]"
+            className="text-[10px] font-['JetBrains_Mono'] text-[#8b8ba0]"
             key={score.label}
             style={{ width: `${(3 / scores.length) * 100}%` }}
           >
@@ -88,7 +88,7 @@ export function BestTimeCard({ scores }: BestTimeCardProps) {
         ))}
       </div>
 
-      <div className="flex items-center gap-4 mt-3 text-[10px] font-['JetBrains_Mono'] text-[#6b6b80]">
+      <div className="flex items-center gap-4 mt-3 text-[10px] font-['JetBrains_Mono'] text-[#8b8ba0]">
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: 'rgba(74, 222, 128, 0.7)' }} />
           Low demand

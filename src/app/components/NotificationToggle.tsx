@@ -8,6 +8,16 @@ interface NotificationToggleProps {
 
 const STORAGE_KEY = 'claude-notify-enabled';
 
+function BellIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      {!active && <line x1="1" y1="1" x2="23" y2="23" />}
+    </svg>
+  );
+}
+
 export function NotificationToggle({ status }: NotificationToggleProps) {
   const [enabled, setEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
@@ -49,36 +59,34 @@ export function NotificationToggle({ status }: NotificationToggleProps) {
 
     if (prev === status.phaseTone) return;
 
-    if (status.phaseTone === 'off_peak') {
-      new Notification('Claude Code — Off-Peak Started', {
-        body: `${status.phaseLabel} — ${status.phaseSource}`,
-        icon: '/favicon.ico',
-        tag: 'claude-phase-change',
-      });
-    } else {
-      new Notification('Claude Code — Peak Started', {
-        body: `${status.phaseLabel} — ${status.phaseSource}`,
-        icon: '/favicon.ico',
-        tag: 'claude-phase-change',
-      });
-    }
+    const title = status.phaseTone === 'off_peak'
+      ? 'Claude Code — Off-Peak Started'
+      : 'Claude Code — Peak Started';
+
+    new Notification(title, {
+      body: `${status.phaseLabel} — ${status.phaseSource}`,
+      icon: '/favicon.ico',
+      tag: 'claude-phase-change',
+    });
   }, [enabled, permission, status.phaseTone, status.phaseLabel, status.phaseSource]);
 
   if (typeof Notification === 'undefined') return null;
 
+  const isActive = enabled && permission === 'granted';
+
   return (
     <button
-      className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-['JetBrains_Mono'] transition-colors ${
-        enabled && permission === 'granted'
+      className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-['JetBrains_Mono'] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c4a1ff] focus-visible:outline-offset-2 ${
+        isActive
           ? 'bg-[#c4a1ff]/10 text-[#c4a1ff]'
-          : 'bg-white/5 text-[#6b6b80] hover:text-[#e2e2e8]'
+          : 'bg-white/5 text-[#8b8ba0] hover:text-[#e2e2e8]'
       }`}
       onClick={toggle}
-      title={enabled ? 'Notifications enabled — click to disable' : 'Enable browser notifications for phase changes'}
+      aria-label={isActive ? 'Disable phase change notifications' : 'Enable phase change notifications'}
       type="button"
     >
-      <span>{enabled && permission === 'granted' ? '🔔' : '🔕'}</span>
-      <span>{enabled && permission === 'granted' ? 'Notifications On' : 'Notify Me'}</span>
+      <BellIcon active={isActive} />
+      <span>{isActive ? 'Alerts On' : 'Notify Me'}</span>
     </button>
   );
 }

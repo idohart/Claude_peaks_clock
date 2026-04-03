@@ -1,38 +1,37 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 
-import { getPromotionSnapshot } from './promotionWebData';
+import { handlePromotions } from './handlers';
 
 const app = express();
 const port = Number.parseInt(process.env.PORT ?? '8787', 10);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.resolve(__dirname, '../dist');
 
-app.get('/api/health', (_request, response) => {
-  response.json({ ok: true });
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'rate_limited', message: 'Too many requests. Please try again later.' },
 });
 
-app.get('/api/promotions', async (_request, response) => {
-  try {
-    const snapshot = await getPromotionSnapshot();
-    response.setHeader('Cache-Control', 'public, max-age=300');
-    response.json(snapshot);
-  } catch (error) {
-    response.status(502).json({
-      error: 'promotion_fetch_failed',
-      message: error instanceof Error ? error.message : String(error),
-    });
+app.get('/api/health', (_req, res) => { res.json({ ok: true }); });
+
+app.get('/api/promotions', apiLimiter, async (_req, res) => {
+  const result = await handlePromotions();
+  for (const [key, value] of Object.entries(result.headers)) {
+    res.setHeader(key, value);
   }
+  res.status(result.status).json(result.body);
 });
 
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-
-  app.use((_request, response) => {
-    response.sendFile(path.join(distPath, 'index.html'));
-  });
+  app.use((_req, res) => { res.sendFile(path.join(distPath, 'index.html')); });
 }
 
 app.listen(port, () => {
