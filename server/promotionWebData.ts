@@ -1,7 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { load } from 'cheerio';
 import { DateTime } from 'luxon';
 
-import type {
+import {
+  PERMANENT_WEEKDAY_PEAK_BASELINE,
+  type ClaudeStatusSummary,
+  type PromotionManualOverride,
+  type PromotionParseWarning,
   PromotionCampaign,
   PromotionForecast,
   PromotionPhase,
@@ -12,8 +19,14 @@ import type {
 const SUPPORT_SITEMAP_URL = 'https://support.claude.com/sitemap.xml';
 const HOLIDAY_API_BASE_URL = 'https://date.nager.at/api/v3/PublicHolidays';
 const HOLIDAY_COUNTRY_CODE = 'US';
+const STATUS_PAGE_BASE_URL = 'https://status.claude.ai';
+const STATUS_PAGE_STATUS_URL = `${STATUS_PAGE_BASE_URL}/api/v2/status.json`;
+const STATUS_PAGE_INCIDENTS_URL = `${STATUS_PAGE_BASE_URL}/api/v2/incidents/unresolved.json`;
 const SOURCE_LABEL = 'Official Claude Help Center promotion pages';
-const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_TTL_MS = 2 * 60 * 1000;
+const MANUAL_SIGNALS_PATH = join(process.cwd(), 'server', 'manualSignals.json');
+const BASELINE_WITH_HISTORY_WEIGHT = 0.35;
+const BASELINE_WITHOUT_HISTORY_WEIGHT = 0.55;
 
 type ScheduleRule =
   | {
@@ -31,6 +44,12 @@ type ScheduleRule =
 interface ParsedCampaignBundle {
   campaign: PromotionCampaign;
   windows: PromotionWindow[];
+}
+
+interface WeekdayPeakBand {
+  peakStartHour: number;
+  peakEndHour: number;
+  parser: 'strict' | 'fallback';
 }
 
 interface CachedSnapshot {
@@ -57,6 +76,8 @@ interface PhaseProbabilityModel {
   offPeakGlobal: number;
   peakGlobal: number;
   totalWeight: number;
+  baselineWeight: number;
+  baselineSupport: number;
 }
 
 let cachedSnapshot: CachedSnapshot | null = null;
@@ -96,6 +117,38 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
+}
+
+function readManualSignalsFile(): PromotionManualOverride | null {
+  try {
+    const parsed = JSON.parse(readFileSync(MANUAL_SIGNALS_PATH, 'utf8')) as Partial<
+      PromotionManualOverride & { enabled: boolean }
+    >;
+
+    if (!parsed.enabled || typeof parsed.message !== 'string' || parsed.message.trim().length === 0) {
+      return null;
+    }
+
+    return {
+      message: parsed.message.trim(),
+      severity:
+        parsed.severity === 'info' || parsed.severity === 'warning' || parsed.severity === 'critical'
+          ? parsed.severity
+          : 'warning',
+      source: typeof parsed.source === 'string' && parsed.source.trim().length > 0 ? parsed.source.trim() : null,
+      updatedAtUtc:
+        typeof parsed.updatedAtUtc === 'string' && parsed.updatedAtUtc.trim().length > 0
+          ? parsed.updatedAtUtc.trim()
+          : null,
+    };
+  } catch (error) {
+    console.warn(
+      `Manual signals file unavailable, continuing without operator overrides: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return null;
+  }
 }
 
 function toTwentyFourHour(hour: number, meridiem: string): number {
@@ -177,12 +230,54 @@ function extractPtCampaignRange(articleText: string): { startsAt: DateTime; ends
   };
 }
 
-function extractWeekdayPeakBand(articleText: string): { peakStartHour: number; peakEndHour: number } | null {
+function extractHourRange(candidateText: string): { peakStartHour: number; peakEndHour: number } | null {
+  const matches = [...candidateText.matchAll(/\b(\d{1,2})(?::\d{2})?\s*(AM|PM)\b/gi)];
+  if (matches.length < 2) {
+    return null;
+  }
+
+  const [firstMatch, secondMatch] = matches;
+  return {
+    peakStartHour: toTwentyFourHour(Number.parseInt(firstMatch[1], 10), firstMatch[2]),
+    peakEndHour: toTwentyFourHour(Number.parseInt(secondMatch[1], 10), secondMatch[2]),
+  };
+}
+
+function extractWeekdayPeakBand(articleText: string): WeekdayPeakBand | null {
   const match = articleText.match(
     /outside\s+(\d{1,2})(?::\d{2})?\s*(AM|PM)\s*-\s*(\d{1,2})(?::\d{2})?\s*(AM|PM)\s*ET/i,
   );
   if (!match) {
-    return null;
+    const candidateLines = articleText
+      .split('\n')
+      .map((line) => normalizeWhitespace(line))
+      .filter((line) => /\bET\b/i.test(line) && /(outside|weekday|weekdays|peak)/i.test(line));
+
+    for (const candidateLine of candidateLines) {
+      const range = extractHourRange(candidateLine);
+      if (range) {
+        return {
+          ...range,
+          parser: 'fallback',
+        };
+      }
+    }
+
+    const normalizedArticle = normalizeWhitespace(articleText);
+    const fallbackMatch = normalizedArticle.match(
+      /((?:outside|weekday|weekdays|peak)[^.]{0,160}\bET\b[^.]*)/i,
+    )?.[1];
+    if (!fallbackMatch) {
+      return null;
+    }
+
+    const range = extractHourRange(fallbackMatch);
+    return range
+      ? {
+          ...range,
+          parser: 'fallback',
+        }
+      : null;
   }
 
   const [, rawStartHour, rawStartMeridiem, rawEndHour, rawEndMeridiem] = match;
@@ -190,6 +285,7 @@ function extractWeekdayPeakBand(articleText: string): { peakStartHour: number; p
   return {
     peakStartHour: toTwentyFourHour(Number.parseInt(rawStartHour, 10), rawStartMeridiem),
     peakEndHour: toTwentyFourHour(Number.parseInt(rawEndHour, 10), rawEndMeridiem),
+    parser: 'strict',
   };
 }
 
@@ -251,6 +347,15 @@ function getPhaseLabel(phase: PromotionPhase): string {
 function isHoliday(dateTime: DateTime, holidayDates: Set<string>): boolean {
   const isoDate = dateTime.toISODate();
   return isoDate ? holidayDates.has(isoDate) : false;
+}
+
+function isPermanentWeekdayPeak(atUtc: DateTime): boolean {
+  const referenceTime = atUtc.setZone(PERMANENT_WEEKDAY_PEAK_BASELINE.zone);
+  return (
+    referenceTime.weekday <= 5 &&
+    referenceTime.hour >= PERMANENT_WEEKDAY_PEAK_BASELINE.weekdayStartHour &&
+    referenceTime.hour < PERMANENT_WEEKDAY_PEAK_BASELINE.weekdayEndHour
+  );
 }
 
 async function getHolidayDatesForYear(year: number): Promise<Set<string>> {
@@ -385,11 +490,12 @@ function expandWindows(campaign: PromotionCampaign, rule: ScheduleRule): Promoti
   return windows;
 }
 
-function parseFullDayPromotion(articleText: string, title: string, sourceUrl: string, updatedAtUtc: string | null): ParsedCampaignBundle {
-  const range = extractUtcCampaignRange(articleText);
-  if (!range) {
-    throw new Error(`Could not parse full-day promotion range from ${sourceUrl}`);
-  }
+function parseFullDayPromotion(
+  range: { startsAt: DateTime; endsAt: DateTime },
+  title: string,
+  sourceUrl: string,
+  updatedAtUtc: string | null,
+): ParsedCampaignBundle {
   const campaign = buildCampaign(
     title,
     sourceUrl,
@@ -406,12 +512,13 @@ function parseFullDayPromotion(articleText: string, title: string, sourceUrl: st
   };
 }
 
-function parseWeekdayBandPromotion(articleText: string, title: string, sourceUrl: string, updatedAtUtc: string | null): ParsedCampaignBundle {
-  const range = extractPtCampaignRange(articleText);
-  const peakBand = extractWeekdayPeakBand(articleText);
-  if (!range || !peakBand) {
-    throw new Error(`Could not parse weekday-band promotion from ${sourceUrl}`);
-  }
+function parseWeekdayBandPromotion(
+  range: { startsAt: DateTime; endsAt: DateTime },
+  peakBand: WeekdayPeakBand,
+  title: string,
+  sourceUrl: string,
+  updatedAtUtc: string | null,
+): ParsedCampaignBundle {
   const campaign = buildCampaign(
     title,
     sourceUrl,
@@ -436,17 +543,80 @@ function parseWeekdayBandPromotion(articleText: string, title: string, sourceUrl
   };
 }
 
-function parsePromotionArticle(sourceUrl: string, html: string): ParsedCampaignBundle {
+function parsePromotionArticle(
+  sourceUrl: string,
+  html: string,
+): { bundle: ParsedCampaignBundle; warnings: PromotionParseWarning[] } {
   const article = extractArticleText(html);
-  if (extractWeekdayPeakBand(article.text) && extractPtCampaignRange(article.text)) {
-    return parseWeekdayBandPromotion(article.text, article.title, sourceUrl, article.updatedAtUtc);
+  const ptRange = extractPtCampaignRange(article.text);
+  const peakBand = extractWeekdayPeakBand(article.text);
+
+  if (peakBand && ptRange) {
+    return {
+      bundle: parseWeekdayBandPromotion(ptRange, peakBand, article.title, sourceUrl, article.updatedAtUtc),
+      warnings:
+        peakBand.parser === 'fallback'
+          ? [
+              {
+                sourceUrl,
+                message: `Used fallback ET hour parsing for "${article.title}". Review this article if Anthropic rewords the weekday peak band again.`,
+              },
+            ]
+          : [],
+    };
   }
 
-  if (extractUtcCampaignRange(article.text)) {
-    return parseFullDayPromotion(article.text, article.title, sourceUrl, article.updatedAtUtc);
+  const utcRange = extractUtcCampaignRange(article.text);
+  if (utcRange) {
+    return {
+      bundle: parseFullDayPromotion(utcRange, article.title, sourceUrl, article.updatedAtUtc),
+      warnings: [],
+    };
   }
 
   throw new Error(`Unsupported promotion article shape: ${article.title}`);
+}
+
+async function fetchStatusPageSummary(): Promise<ClaudeStatusSummary | null> {
+  try {
+    const [statusResponse, incidentsResponse] = await Promise.all([
+      fetchJson<{
+        page: { url?: string };
+        status: { indicator: string; description: string };
+      }>(STATUS_PAGE_STATUS_URL),
+      fetchJson<{
+        incidents: Array<{
+          id: string;
+          name: string;
+          status: string;
+          impact: string;
+          shortlink?: string | null;
+          updated_at?: string | null;
+        }>;
+      }>(STATUS_PAGE_INCIDENTS_URL),
+    ]);
+
+    return {
+      indicator: statusResponse.status.indicator,
+      description: statusResponse.status.description,
+      url: statusResponse.page.url ?? STATUS_PAGE_BASE_URL,
+      activeIncidents: incidentsResponse.incidents.map((incident) => ({
+        id: incident.id,
+        name: incident.name,
+        status: incident.status,
+        impact: incident.impact,
+        shortlink: incident.shortlink ?? null,
+        updatedAtUtc: incident.updated_at ?? null,
+      })),
+    };
+  } catch (error) {
+    console.warn(
+      `Status page feed unavailable, continuing without incident context: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return null;
+  }
 }
 
 function buildCampaignForecast(
@@ -492,16 +662,18 @@ function buildCampaignForecast(
     intervals.reduce((total, value) => total + (value - averageInterval) * (value - averageInterval), 0) /
     intervals.length;
   const relativeVolatility = Math.sqrt(variance) / averageInterval;
+  const sampleSizePenalty = Math.min(1, intervals.length / 4);
   const nextStart = DateTime.fromMillis(startTimes[startTimes.length - 1] + averageInterval, { zone: 'utc' });
   const nextEnd = nextStart.plus({ milliseconds: averageDuration });
+  const baseConfidence = clamp(0.45 - relativeVolatility * 0.2, 0.2, 0.55);
 
   return {
     kind: 'estimated_campaign',
     startsAtUtc: nextStart.toISO() ?? nextStart.toString(),
     endsAtUtc: nextEnd.toISO() ?? nextEnd.toString(),
-    confidence: clamp(0.45 - relativeVolatility * 0.2, 0.2, 0.55),
+    confidence: clamp(baseConfidence * sampleSizePenalty, 0.05, 0.55),
     explanation: 'Estimated from the spacing between official Claude usage promotions discovered on support.claude.com.',
-    basis: `Average gap of ${Math.round(averageInterval / (1000 * 60 * 60 * 24))} days between published campaigns`,
+    basis: `Average gap of ${Math.round(averageInterval / (1000 * 60 * 60 * 24))} days between published campaigns, penalized for a small sample of ${intervals.length} observed interval${intervals.length === 1 ? '' : 's'}`,
     matchedCampaigns: sortedCampaigns.length,
   };
 }
@@ -714,6 +886,8 @@ function buildPhaseProbabilityModel(
     offPeakGlobal: globalSupport > 0 ? offPeakGlobal / globalSupport : 0.5,
     peakGlobal: globalSupport > 0 ? peakGlobal / globalSupport : 0.5,
     totalWeight,
+    baselineWeight: totalWeight > 0 ? BASELINE_WITH_HISTORY_WEIGHT : BASELINE_WITHOUT_HISTORY_WEIGHT,
+    baselineSupport: PERMANENT_WEEKDAY_PEAK_BASELINE.support,
   };
 }
 
@@ -740,23 +914,34 @@ function getPhaseScores(
     model.totalWeight > 0
       ? Math.max(slotSupport, contextSupport, holidaySupport, hourSupport) / model.totalWeight
       : 0;
+  const baselinePeak = isPermanentWeekdayPeak(atUtc)
+    ? PERMANENT_WEEKDAY_PEAK_BASELINE.peakProbability
+    : 1 - PERMANENT_WEEKDAY_PEAK_BASELINE.offPeakProbability;
+  const baselineOffPeak = isPermanentWeekdayPeak(atUtc)
+    ? 1 - PERMANENT_WEEKDAY_PEAK_BASELINE.peakProbability
+    : PERMANENT_WEEKDAY_PEAK_BASELINE.offPeakProbability;
+  const historicalWeight = 1 - model.baselineWeight;
   const contextOffPeak = weekend ? model.offPeakByWeekendHour[hour] : model.offPeakByWeekdayHour[hour];
   const contextPeak = weekend ? model.peakByWeekendHour[hour] : model.peakByWeekdayHour[hour];
 
   return {
     offPeak:
-      slotWeight * model.offPeakBySlot[dayIndex][hour] +
-      contextWeight * contextOffPeak +
-      holidayWeight * model.offPeakByHolidayHour[hour] +
-      hourWeight * model.offPeakByHour[hour] +
-      globalWeight * model.offPeakGlobal,
+      historicalWeight *
+        (slotWeight * model.offPeakBySlot[dayIndex][hour] +
+          contextWeight * contextOffPeak +
+          holidayWeight * model.offPeakByHolidayHour[hour] +
+          hourWeight * model.offPeakByHour[hour] +
+          globalWeight * model.offPeakGlobal) +
+      model.baselineWeight * baselineOffPeak,
     peak:
-      slotWeight * model.peakBySlot[dayIndex][hour] +
-      contextWeight * contextPeak +
-      holidayWeight * model.peakByHolidayHour[hour] +
-      hourWeight * model.peakByHour[hour] +
-      globalWeight * model.peakGlobal,
-    support: clamp(normalizedSupport, 0, 1),
+      historicalWeight *
+        (slotWeight * model.peakBySlot[dayIndex][hour] +
+          contextWeight * contextPeak +
+          holidayWeight * model.peakByHolidayHour[hour] +
+          hourWeight * model.peakByHour[hour] +
+          globalWeight * model.peakGlobal) +
+      model.baselineWeight * baselinePeak,
+    support: clamp(Math.max(normalizedSupport, model.baselineSupport), 0, 1),
   };
 }
 
@@ -870,8 +1055,8 @@ function inferNearTermPhaseForecast(
         startsAtUtc: (runStart <= nowUtc ? nowUtc : runStart).toUTC().toISO() ?? runStart.toString(),
         endsAtUtc: runEnd.toUTC().toISO() ?? runEnd.toString(),
         confidence,
-        explanation: `Near-term estimate from historical weekday and hour patterns seen in previous official ${getPhaseLabel(phase)} windows.`,
-        basis: 'ET day-of-week, weekend, hour, and US public holiday probabilities over the next 7 days; not an official published schedule',
+        explanation: `Near-term estimate from Anthropic's published weekday baseline plus historical weekday and hour patterns seen in previous official ${getPhaseLabel(phase)} windows.`,
+        basis: 'Permanent 5 AM-11 AM PT weekday peak baseline blended with ET day-of-week, weekend, hour, and US public holiday probabilities over the next 7 days; not a live official schedule',
       };
     }
 
@@ -888,10 +1073,6 @@ function buildForecast(
   nowUtc: DateTime,
 ): PromotionForecast | null {
   const campaignForecast = buildCampaignForecast(campaigns, nowUtc);
-  if (!campaignForecast && windows.length === 0) {
-    return null;
-  }
-
   const model = buildPhaseProbabilityModel(campaigns, windows, holidayDates);
 
   if (campaignForecast?.kind === 'official_campaign') {
@@ -922,18 +1103,34 @@ function buildForecast(
 async function buildPromotionSnapshot(): Promise<PromotionSnapshotResponse> {
   const sitemapXml = await fetchText(SUPPORT_SITEMAP_URL);
   const sourceUrls = extractPromotionUrls(sitemapXml);
-  const bundles = await Promise.all(
+  const parsedArticles = await Promise.all(
     sourceUrls.map(async (sourceUrl) => {
-      const html = await fetchText(sourceUrl);
-      return parsePromotionArticle(sourceUrl, html);
+      try {
+        const html = await fetchText(sourceUrl);
+        return parsePromotionArticle(sourceUrl, html);
+      } catch (error) {
+        return {
+          bundle: null,
+          warnings: [
+            {
+              sourceUrl,
+              message: error instanceof Error ? error.message : String(error),
+            },
+          ],
+        };
+      }
     }),
   );
+  const parseWarnings = parsedArticles.flatMap((result) => result.warnings);
+  const bundles = parsedArticles.flatMap((result) => (result.bundle ? [result.bundle] : []));
   const campaigns = bundles.map((bundle) => bundle.campaign).sort((left, right) => left.startsAtUtc.localeCompare(right.startsAtUtc));
   const windows = bundles
     .flatMap((bundle) => bundle.windows)
     .sort((left, right) => left.startedAtUtc.localeCompare(right.startedAtUtc));
   const nowUtc = DateTime.utc();
   const campaignForecast = buildCampaignForecast(campaigns, nowUtc);
+  const manualOverride = readManualSignalsFile();
+  const statusPage = await fetchStatusPageSummary();
   const relevantYears = new Set<number>();
 
   campaigns.forEach((campaign) => {
@@ -970,6 +1167,9 @@ async function buildPromotionSnapshot(): Promise<PromotionSnapshotResponse> {
     campaigns,
     windows,
     forecast: buildForecast(campaigns, windows, holidayDates, nowUtc),
+    parseWarnings,
+    statusPage,
+    manualOverride,
   };
 }
 

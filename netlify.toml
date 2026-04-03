@@ -3,6 +3,9 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[functions]
+  included_files = ["server/manualSignals.json"]
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

@@ -1,5 +1,14 @@
 export type PromotionPhase = 'peak' | 'off_peak';
 
+export const PERMANENT_WEEKDAY_PEAK_BASELINE = {
+  zone: 'America/Los_Angeles',
+  weekdayStartHour: 5,
+  weekdayEndHour: 11,
+  peakProbability: 0.82,
+  offPeakProbability: 0.82,
+  support: 0.55,
+} as const;
+
 export interface PromotionCampaign {
   id: string;
   title: string;
@@ -48,6 +57,34 @@ export interface PromotionForecast {
   nextPeak: PhaseForecast | null;
 }
 
+export interface PromotionParseWarning {
+  sourceUrl: string;
+  message: string;
+}
+
+export interface ClaudeStatusIncident {
+  id: string;
+  name: string;
+  status: string;
+  impact: string;
+  shortlink: string | null;
+  updatedAtUtc: string | null;
+}
+
+export interface ClaudeStatusSummary {
+  indicator: string;
+  description: string;
+  url: string;
+  activeIncidents: ClaudeStatusIncident[];
+}
+
+export interface PromotionManualOverride {
+  message: string;
+  severity: 'info' | 'warning' | 'critical';
+  source: string | null;
+  updatedAtUtc: string | null;
+}
+
 export interface PromotionSnapshotResponse {
   fetchedAtUtc: string;
   sourceLabel: string;
@@ -55,38 +92,9 @@ export interface PromotionSnapshotResponse {
   campaigns: PromotionCampaign[];
   windows: PromotionWindow[];
   forecast: PromotionForecast | null;
-}
-
-export interface LocalizedPromotionWindow {
-  id: string;
-  campaignId: string;
-  phase: PromotionPhase;
-  phaseLabel: string;
-  startedAtMillis: number;
-  startedAtLabel: string;
-  endedAtLabel: string;
-  dayLabel: string;
-  dateLabel: string;
-  durationLabel: string;
-  label: string;
-  notes: string;
-  sourceUrl: string;
-}
-
-export interface UsageHourPoint {
-  hour: number;
-  label: string;
-  usage: number;
-  hasData: boolean;
-  isPeak: boolean;
-}
-
-export interface WeeklyHeatmapCell {
-  dayLabel: string;
-  dateLabel: string;
-  hour: number;
-  usage: number;
-  hasData: boolean;
+  parseWarnings: PromotionParseWarning[];
+  statusPage: ClaudeStatusSummary | null;
+  manualOverride: PromotionManualOverride | null;
 }
 
 export interface ForecastTransitionViewModel {
@@ -115,28 +123,46 @@ export interface ForecastViewModel {
 }
 
 export interface ClockStatus {
-  officialLabel: string;
-  officialTone: 'peak' | 'off_peak' | 'inactive';
-  officialDetail: string;
-  currentPhaseLabel: string;
-  currentPhaseTone: 'peak' | 'off_peak';
-  currentPhaseDetail: string;
-  patternLabel: string;
-  patternUsage: number;
-  patternTone: 'peak' | 'moderate' | 'off_peak';
+  phaseLabel: string;
+  phaseTone: 'peak' | 'off_peak';
+  phaseSource: string;
+  platformLabel: string;
+  platformTone: 'normal' | 'warning' | 'critical';
+  platformDetail: string;
 }
 
-export interface PromotionHistoryEntry {
-  id: string;
-  date: string;
-  timeRange: string;
-  day: string;
-  usage: number;
-  duration: string;
+export interface BestTimeRecommendation {
+  label: string;
+  startHour: number;
+  endHour: number;
   reason: string;
-  phase: PromotionPhase;
-  phaseLabel: string;
+  quality: 'great' | 'good' | 'fair';
+}
+
+export interface BaselineHour {
+  hour: number;
+  isPeak: boolean;
+}
+
+export interface BaselineDay {
+  dayLabel: string;
+  hours: BaselineHour[];
+}
+
+export interface CampaignSummary {
+  id: string;
+  title: string;
+  dateRange: string;
+  scheduleSummary: string;
   sourceUrl: string;
+  isActive: boolean;
+}
+
+export interface DashboardNotice {
+  id: string;
+  title: string;
+  detail: string;
+  tone: 'info' | 'warning' | 'critical';
 }
 
 export interface DashboardViewModel {
@@ -144,9 +170,10 @@ export interface DashboardViewModel {
   sourceUrls: string[];
   sourceLinks: Array<{ url: string; label: string }>;
   timezone: string;
-  todayUsage: UsageHourPoint[];
-  weeklyHeatmap: WeeklyHeatmapCell[][];
+  notices: DashboardNotice[];
+  baselineSchedule: BaselineDay[];
+  bestTimes: BestTimeRecommendation[];
   forecast: ForecastViewModel | null;
-  history: PromotionHistoryEntry[];
+  campaignHistory: CampaignSummary[];
   currentStatus: ClockStatus;
 }

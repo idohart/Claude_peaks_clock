@@ -152,5 +152,28 @@
       "Confirm the detail explains whether the answer comes from an official live window or from the current historical pattern"
     ],
     "passes": true
+  },
+  {
+    "id": 15,
+    "priority": "high",
+    "description": "When no Help Center campaign is live, the app still anchors the current phase and near-term phase forecast to Anthropic's permanent 5 AM-11 AM PT weekday peak baseline, while keeping long-range campaign confidence conservative and the snapshot refresh cadence short.",
+    "verify": [
+      "Request the promotion snapshot outside an active official campaign",
+      "Confirm nextOffPeak and nextPeak are still produced from the baseline-plus-history model",
+      "Build the dashboard model and confirm 'Off-Peak Now' flips from the permanent weekday baseline in the browser without waiting for a stale 10-minute cache",
+      "Confirm the long-range campaign confidence is reduced by the sample-size penalty when only one interval is available"
+    ],
+    "passes": true
+  },
+  {
+    "id": 16,
+    "priority": "medium",
+    "description": "The backend snapshot and UI surface live Claude status incidents, manual operator notes, and parser warnings so users can see operational context beyond official promotion windows.",
+    "verify": [
+      "Request the promotion snapshot",
+      "Confirm the response includes statusPage, manualOverride, and parseWarnings fields",
+      "Load the dashboard and confirm the clock shows platform status and the notice strip can render manual overrides or parser warnings"
+    ],
+    "passes": true
   }
 ]

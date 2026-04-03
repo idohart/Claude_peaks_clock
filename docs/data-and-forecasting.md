@@ -4,10 +4,12 @@ This document describes the current implementation exactly as it exists in [prom
 
 ## 1. Where the app fetches data from
 
-The backend uses two external sources:
+The backend uses three external sources plus one local operator file:
 
 - Claude Help Center sitemap: `https://support.claude.com/sitemap.xml`
+- Claude status feed: `https://status.claude.ai/api/v2/status.json` and `https://status.claude.ai/api/v2/incidents/unresolved.json`
 - US public holidays: `https://date.nager.at/api/v3/PublicHolidays/{year}/US`
+- Manual override file: `server/manualSignals.json`
 
 The sitemap is scanned for article URLs that match this pattern:
 
@@ -25,10 +27,10 @@ The API entrypoint is [index.ts](/c:/ido%20harti/Script/claude%20promotion%20tim
 
 `getPromotionSnapshot()`:
 
-1. Returns a cached snapshot if it is younger than 10 minutes.
+1. Returns a cached snapshot if it is younger than 2 minutes.
 2. Otherwise rebuilds the full snapshot.
 
-The 10-minute cache TTL is defined by `CACHE_TTL_MS = 10 * 60 * 1000`.
+The cache TTL is defined by `CACHE_TTL_MS = 2 * 60 * 1000`.
 
 ## 3. How promotion articles are parsed
 
@@ -66,6 +68,13 @@ This shape is parsed by:
 - `extractPtCampaignRange()`
 - `extractWeekdayPeakBand()`
 - `parseWeekdayBandPromotion()`
+
+`extractWeekdayPeakBand()` now tries:
+
+- the original strict `outside ... ET` regex
+- a looser fallback parser that scans ET lines for the first two clock times
+
+If the fallback parser is used, or if an article cannot be parsed at all, the backend adds an entry to `parseWarnings`.
 
 Result:
 
@@ -107,7 +116,17 @@ Rules:
 
 That fallback is intentional. The backend logs a warning and falls back to weekday/weekend plus hour-of-day modeling only.
 
-## 6. How the long-range campaign estimate is calculated
+## 6. How the status feed and manual override work
+
+The snapshot now also includes:
+
+- `statusPage`: a summary of the live Claude status feed plus unresolved incidents
+- `manualOverride`: an optional operator-authored note from `server/manualSignals.json`
+- `parseWarnings`: parser fallback or failure warnings for article changes
+
+These values do not change the official windows themselves, but they are surfaced in the UI so users can see active incidents, operator notes, or parser drift alongside the phase labels.
+
+## 7. How the long-range campaign estimate is calculated
 
 The long-range campaign estimate is built by `buildCampaignForecast()`.
 
@@ -138,12 +157,13 @@ Algorithm:
 9. Set confidence with:
 
 ```text
-confidence = clamp(0.45 - relativeVolatility * 0.2, 0.2, 0.55)
+baseConfidence = clamp(0.45 - relativeVolatility * 0.2, 0.2, 0.55)
+confidence = clamp(baseConfidence * min(1, intervals.length / 4), 0.05, 0.55)
 ```
 
-This is why the campaign forecast is intentionally low-confidence and long-range.
+This adds a sample-size penalty so a forecast derived from only one observed interval cannot look artificially strong.
 
-## 7. How the hour-level phase model is built
+## 8. How the hour-level phase model is built
 
 The near-term hourly model is built by `buildPhaseProbabilityModel()`.
 
@@ -159,6 +179,14 @@ weight = campaign index + 1
 
 So newer campaigns count more than older campaigns.
 
+In addition to campaign history, the model now carries a permanent baseline:
+
+- weekday peak baseline: `5 AM` through `11 AM` in `America/Los_Angeles`
+- baseline support: `0.55`
+- baseline blend weight: `0.35` when historical campaign data exists, `0.55` when it does not
+
+This baseline is synthetic. It is not treated as a live campaign, but it prevents the app from collapsing to pure historical spacing when no Help Center promotion is live.
+
 For every overlapping hour in every official window, the model accumulates:
 
 - weekday x hour slot totals
@@ -168,7 +196,7 @@ For every overlapping hour in every official window, the model accumulates:
 - overall hour totals
 - global peak/off-peak totals
 
-The model stores probabilities for both phases:
+The model stores probabilities for both phases plus the baseline blend metadata:
 
 - `offPeakBySlot`
 - `peakBySlot`
@@ -182,10 +210,12 @@ The model stores probabilities for both phases:
 - `peakByHour`
 - `offPeakGlobal`
 - `peakGlobal`
+- `baselineWeight`
+- `baselineSupport`
 
 It also stores support values so the scorer knows whether a slot has enough evidence.
 
-## 8. How a single hour is scored
+## 9. How a single hour is scored
 
 The scorer is `getPhaseScores()`.
 
@@ -204,13 +234,15 @@ Then it blends probabilities using these weights:
 - plain hour weight: `0.1` when slot support exists, otherwise `0.2`
 - global fallback weight: whatever remains to make the total `1.0`
 
+After the historical blend is computed, the permanent weekday baseline is mixed in as an additional probability source.
+
 The function returns:
 
 - `offPeak` score
 - `peak` score
 - normalized `support`
 
-## 9. How next off-peak and next peak are estimated
+## 10. How next off-peak and next peak are estimated
 
 The final forecast is built by `buildForecast()`.
 
@@ -253,37 +285,51 @@ confidence = clamp(
 The near-term phase forecast is therefore:
 
 - short-range
-- historical/inferred
+- baseline-plus-history inferred
 - separate from the long-range public campaign estimate
 
-## 10. How the frontend uses the data
+## 11. How the frontend uses the data
 
 The client-side transformer is [dashboardModel.ts](/c:/ido%20harti/Script/claude%20promotion%20times/src/services/dashboardModel.ts).
 
 ### Current clock
 
-The clock shows three different things:
+The clock shows four different things:
 
 1. `Official Status`
    - exact live official window if one exists
    - otherwise `No Promotion Live`
 
-2. `Off-Peak Now`
-   - if an official window is active: exact yes/no from that live window
-   - otherwise: current inferred phase from the historical hour-of-week model
+2. `Platform Status`
+   - live status feed summary from `status.claude.ai`
+   - unresolved incidents if any exist
 
-3. `Historical Pattern`
+3. `Off-Peak Now`
+   - if an official window is active: exact yes/no from that live window
+   - otherwise: current phase from the permanent weekday baseline, recomputed in the browser every tick
+
+4. `Historical Pattern`
    - the current hour's aggregate historical tendency
 
 Important:
 
 - `Off-Peak Now` outside an official campaign is an estimate, not a published Claude guarantee
 
+### Status notices
+
+The app also renders a separate notice strip for:
+
+- active status incidents
+- manual override text from `server/manualSignals.json`
+- parser warnings when article wording drifts
+
 ### Forecast cards
 
 - `Next Off-Peak Window`: official if available, otherwise near-term inferred
 - `Next Peak Start`: official if available, otherwise near-term inferred
 - `Next Public Promo Campaign`: long-range campaign spacing estimate
+
+The client refreshes the snapshot every 2 minutes to keep these server-built cards closer to the current hour boundary.
 
 ### Today's chart and last-7-days heatmap
 
@@ -292,12 +338,12 @@ These are intentionally stricter than the forecast cards.
 They use real official windows only:
 
 - the daily chart uses only today's official windows
-- the heatmap uses a rolling 7-day range ending today in the viewer’s timezone
+- the heatmap uses a rolling 7-day range ending today in the viewer's timezone
 - hours with no official coverage are marked as no-data
 
 So these charts do not fill empty days with inferred history.
 
-## 11. What is official vs inferred
+## 12. What is official vs inferred
 
 Official:
 
@@ -306,6 +352,7 @@ Official:
 - expanded peak/off-peak windows from those articles
 - live current status if a campaign is active
 - charts/heatmap rows that fall inside official windows
+- `statusPage` platform-health metadata
 
 Inferred:
 
@@ -314,9 +361,14 @@ Inferred:
 - `Next Peak Start` when no official promotion is live
 - `Next Public Promo Campaign`
 
-## 12. Current limitations
+Operational context:
+
+- `manualOverride` is local operator context, not an Anthropic feed
+- `parseWarnings` are internal diagnostics about scraper robustness
+
+## 13. Current limitations
 
 - The official source set is very small, so long-range estimates are weak.
 - Public Help Center promotions are not the same thing as a full internal demand model.
 - A strong-looking hour estimate is still only a heuristic when no official live window exists.
-- If the source article wording changes, parsing may fail until the regexes are updated.
+- If the source article wording changes, parsing may still fail even with the fallback parser, but the snapshot now exposes `parseWarnings` instead of failing silently.

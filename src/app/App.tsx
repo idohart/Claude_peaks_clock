@@ -2,11 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { buildDashboardModel } from '../services/dashboardModel';
 import type { PromotionSnapshotResponse } from '../types/promotion';
+import { BaselineSchedule } from './components/BaselineSchedule';
+import { BestTimeCard } from './components/BestTimeCard';
+import { CapacityProbe } from './components/CapacityProbe';
 import { ClockDisplay } from './components/ClockDisplay';
+import { NotificationToggle } from './components/NotificationToggle';
 import { PredictionPanel } from './components/PredictionPanel';
 import { PromotionHistory } from './components/PromotionHistory';
-import { UsageChart } from './components/UsageChart';
-import { WeeklyHeatmap } from './components/WeeklyHeatmap';
+import { StatusNotices } from './components/StatusNotices';
+
+const SNAPSHOT_REFRESH_MS = 2 * 60 * 1000;
 
 export default function App() {
   const [tick, setTick] = useState(() => Date.now());
@@ -36,15 +41,13 @@ export default function App() {
         if (!cancelled) {
           setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
         }
-      } finally {
-        // no-op: the app shell stays visible while data syncs
       }
     }
 
     fetchSnapshot().catch(() => undefined);
     const refreshTimer = window.setInterval(() => {
       fetchSnapshot().catch(() => undefined);
-    }, 5 * 60 * 1000);
+    }, SNAPSHOT_REFRESH_MS);
 
     return () => {
       cancelled = true;
@@ -67,20 +70,27 @@ export default function App() {
             </span>
             <div className="flex-1 h-px bg-gradient-to-r from-[#c4a1ff]/30 to-transparent" />
           </div>
-          <h1 className="text-[#e2e2e8] font-['JetBrains_Mono'] text-3xl md:text-4xl tracking-tight mt-3">
-            Claude Code
-            <br />
-            <span className="text-[#c4a1ff]">Promotion Clock</span>
-          </h1>
-          <p className="text-[#6b6b80] mt-3 max-w-lg">
-            Real-time clock with official Claude promotion schedules from the web, localized
-            to your timezone and projected forward from published campaign history.
-          </p>
+          <div className="flex items-start justify-between gap-4 mt-3">
+            <div>
+              <h1 className="text-[#e2e2e8] font-['JetBrains_Mono'] text-3xl md:text-4xl tracking-tight">
+                Claude Code
+                <br />
+                <span className="text-[#c4a1ff]">Promotion Clock</span>
+              </h1>
+              <p className="text-[#6b6b80] mt-3 max-w-lg">
+                Real-time peak/off-peak status, best usage windows, and optional API capacity
+                monitoring — localized to your timezone.
+              </p>
+            </div>
+            {dashboard ? <NotificationToggle status={dashboard.currentStatus} /> : null}
+          </div>
           {error ? <p className="text-[#ff7a90] text-sm mt-2">{error}</p> : null}
         </header>
 
         {dashboard ? (
           <>
+            <StatusNotices notices={dashboard.notices} />
+
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
               <div className="lg:col-span-2">
                 <ClockDisplay
@@ -95,14 +105,16 @@ export default function App() {
               </div>
             </div>
 
-            <UsageChart data={dashboard.todayUsage} />
-            <WeeklyHeatmap data={dashboard.weeklyHeatmap} />
-            <PromotionHistory history={dashboard.history} />
+            <BestTimeCard recommendations={dashboard.bestTimes} />
+            <CapacityProbe />
+            <BaselineSchedule data={dashboard.baselineSchedule} timezone={dashboard.timezone} />
+            <PromotionHistory campaigns={dashboard.campaignHistory} />
 
             <footer className="border-t border-white/5 pt-6 pb-8">
               <p className="text-[#6b6b80] text-sm max-w-xl">
-                Web data is fetched from official Claude Help Center promotion pages and converted
-                into local-time peak and off-peak windows.
+                Peak/off-peak baseline from Anthropic&apos;s published schedule. Campaign data fetched
+                from official Claude Help Center promotion pages. API capacity probed via rate-limit
+                headers on your own key.
               </p>
             </footer>
           </>

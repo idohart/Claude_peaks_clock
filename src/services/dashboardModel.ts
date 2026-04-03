@@ -1,137 +1,115 @@
 import { DateTime } from 'luxon';
 
-import { formatCountdown, formatDuration, getViewerTimeZone, shortHourLabel } from '../lib/time';
+import { formatCountdown, getViewerTimeZone } from '../lib/time';
 import type {
+  BaselineDay,
+  BestTimeRecommendation,
   CampaignForecastViewModel,
+  CampaignSummary,
+  DashboardNotice,
   DashboardViewModel,
   ForecastTransitionViewModel,
   ForecastViewModel,
-  PromotionPhase,
   PromotionSnapshotResponse,
-  PromotionWindow,
-  UsageHourPoint,
-  WeeklyHeatmapCell,
 } from '../types/promotion';
+import { PERMANENT_WEEKDAY_PEAK_BASELINE } from '../types/promotion';
 
-interface HourAccumulator {
-  peak: number;
-  offPeak: number;
-}
-
-function buildHourlyMatrix(windows: PromotionWindow[], zone: string): HourAccumulator[][] {
-  const matrix = Array.from({ length: 7 }, () =>
-    Array.from({ length: 24 }, () => ({ peak: 0, offPeak: 0 })),
+function isPermanentWeekdayPeak(hour: number, weekday: number): boolean {
+  return (
+    weekday <= 5 &&
+    hour >= PERMANENT_WEEKDAY_PEAK_BASELINE.weekdayStartHour &&
+    hour < PERMANENT_WEEKDAY_PEAK_BASELINE.weekdayEndHour
   );
-
-  for (const window of windows) {
-    const startedAt = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' }).setZone(zone);
-    const endedAt = DateTime.fromISO(window.endedAtUtc, { zone: 'utc' }).setZone(zone);
-    let cursor = startedAt.startOf('hour');
-
-    while (cursor < endedAt) {
-      const nextCursor = cursor.plus({ hours: 1 });
-      const activeStart = startedAt > cursor ? startedAt : cursor;
-      const activeEnd = endedAt < nextCursor ? endedAt : nextCursor;
-      const overlapHours = activeEnd.diff(activeStart, 'minutes').minutes / 60;
-
-      if (overlapHours > 0) {
-        const bucket = matrix[cursor.weekday - 1][cursor.hour];
-        if (window.phase === 'peak') {
-          bucket.peak += overlapHours;
-        } else {
-          bucket.offPeak += overlapHours;
-        }
-      }
-
-      cursor = nextCursor;
-    }
-  }
-
-  return matrix;
 }
 
-function buildUsageHours(dayBuckets: HourAccumulator[]): UsageHourPoint[] {
-  return dayBuckets.map((bucket, hour) => {
-    const total = bucket.peak + bucket.offPeak;
-    const hasData = total > 0;
-    const usage = hasData ? Math.round((bucket.peak / total) * 100) : 0;
+function isPermanentWeekdayPeakUtc(atUtc: DateTime): boolean {
+  const ref = atUtc.setZone(PERMANENT_WEEKDAY_PEAK_BASELINE.zone);
+  return isPermanentWeekdayPeak(ref.hour, ref.weekday);
+}
 
-    return {
+function buildBaselineSchedule(): BaselineDay[] {
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return dayNames.map((dayLabel, index) => ({
+    dayLabel,
+    hours: Array.from({ length: 24 }, (_, hour) => ({
       hour,
-      label: shortHourLabel(hour),
-      usage,
-      hasData,
-      isPeak: usage >= 60,
-    };
-  });
+      isPeak: isPermanentWeekdayPeak(hour, index + 1),
+    })),
+  }));
 }
 
-function buildRangeBuckets(
-  windows: PromotionWindow[],
-  zone: string,
-  rangeStart: DateTime,
-  dayCount: number,
-): Array<{ day: DateTime; buckets: HourAccumulator[] }> {
-  const days = Array.from({ length: dayCount }, (_, index) => ({
-    day: rangeStart.plus({ days: index }),
-    buckets: Array.from({ length: 24 }, () => ({ peak: 0, offPeak: 0 })),
-  }));
-  const dayMap = new Map(days.map((entry) => [entry.day.toISODate(), entry]));
-  const rangeEnd = rangeStart.plus({ days: dayCount });
+function buildBestTimes(nowUtc: DateTime, zone: string, snapshot: PromotionSnapshotResponse): BestTimeRecommendation[] {
+  const recommendations: BestTimeRecommendation[] = [];
+  const nowLocal = nowUtc.setZone(zone);
+  const horizonEnd = nowLocal.plus({ hours: 12 });
 
-  for (const window of windows) {
-    const startedAt = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' }).setZone(zone);
-    const endedAt = DateTime.fromISO(window.endedAtUtc, { zone: 'utc' }).setZone(zone);
-    const effectiveStart = startedAt < rangeStart ? rangeStart : startedAt;
-    const effectiveEnd = endedAt > rangeEnd ? rangeEnd : endedAt;
+  const hasActiveIncident = (snapshot.statusPage?.activeIncidents.length ?? 0) > 0;
+  const activeWindow = snapshot.windows.find((w) => {
+    const s = DateTime.fromISO(w.startedAtUtc, { zone: 'utc' });
+    const e = DateTime.fromISO(w.endedAtUtc, { zone: 'utc' });
+    return nowUtc >= s && nowUtc < e;
+  });
 
-    if (effectiveEnd <= effectiveStart) {
-      continue;
+  let cursor = nowLocal.startOf('hour');
+  let runStart: DateTime | null = null;
+  let runQuality: 'great' | 'good' | 'fair' = 'great';
+
+  const flushRun = () => {
+    if (runStart && cursor > runStart) {
+      recommendations.push({
+        label: `${runStart.toFormat('HH:mm')} - ${cursor.toFormat('HH:mm')}`,
+        startHour: runStart.hour,
+        endHour: cursor.hour,
+        reason:
+          runQuality === 'great'
+            ? 'Off-peak baseline, low expected demand'
+            : runQuality === 'good'
+              ? 'Outside core US business hours'
+              : 'Weekday business hours — expect higher demand',
+        quality: runQuality,
+      });
     }
+    runStart = null;
+  };
 
-    let cursor = effectiveStart.startOf('hour');
-    while (cursor < effectiveEnd) {
-      const nextCursor = cursor.plus({ hours: 1 });
-      const activeStart = effectiveStart > cursor ? effectiveStart : cursor;
-      const activeEnd = effectiveEnd < nextCursor ? effectiveEnd : nextCursor;
-      const overlapHours = activeEnd.diff(activeStart, 'minutes').minutes / 60;
+  while (cursor < horizonEnd) {
+    const cursorUtc = cursor.toUTC();
+    const ptTime = cursorUtc.setZone(PERMANENT_WEEKDAY_PEAK_BASELINE.zone);
+    const isBaselinePeak = isPermanentWeekdayPeak(ptTime.hour, ptTime.weekday);
 
-      if (overlapHours > 0) {
-        const key = cursor.toISODate();
-        const targetDay = key ? dayMap.get(key) : undefined;
-        if (targetDay) {
-          const bucket = targetDay.buckets[cursor.hour];
-          if (window.phase === 'peak') {
-            bucket.peak += overlapHours;
-          } else {
-            bucket.offPeak += overlapHours;
-          }
-        }
+    let officialPhase: 'peak' | 'off_peak' | null = null;
+    if (activeWindow) {
+      const wEnd = DateTime.fromISO(activeWindow.endedAtUtc, { zone: 'utc' });
+      if (cursorUtc < wEnd) {
+        officialPhase = activeWindow.phase;
       }
-
-      cursor = nextCursor;
     }
+
+    let hourQuality: 'great' | 'good' | 'fair';
+    if (officialPhase === 'off_peak') {
+      hourQuality = 'great';
+    } else if (officialPhase === 'peak') {
+      hourQuality = 'fair';
+    } else if (!isBaselinePeak) {
+      hourQuality = hasActiveIncident ? 'good' : 'great';
+    } else {
+      hourQuality = 'fair';
+    }
+
+    if (runStart === null) {
+      runStart = cursor;
+      runQuality = hourQuality;
+    } else if (hourQuality !== runQuality) {
+      flushRun();
+      runStart = cursor;
+      runQuality = hourQuality;
+    }
+
+    cursor = cursor.plus({ hours: 1 });
   }
 
-  return days;
-}
-
-function buildHeatmap(days: Array<{ day: DateTime; buckets: HourAccumulator[] }>): WeeklyHeatmapCell[][] {
-  return days.map(({ day, buckets }) =>
-    buckets.map((bucket, hour) => {
-      const total = bucket.peak + bucket.offPeak;
-      const hasData = total > 0;
-      const usage = hasData ? Math.round((bucket.peak / total) * 100) : 0;
-
-      return {
-        dayLabel: day.toFormat('ccc'),
-        dateLabel: day.toFormat('dd LLL'),
-        hour,
-        usage,
-        hasData,
-      };
-    }),
-  );
+  flushRun();
+  return recommendations;
 }
 
 function buildTransitionViewModel(
@@ -174,6 +152,10 @@ function buildCampaignViewModel(
     return null;
   }
 
+  if (forecast.confidence < 0.2) {
+    return null;
+  }
+
   const startsAt = DateTime.fromISO(forecast.startsAtUtc, { zone: 'utc' }).setZone(zone);
   const countdownMinutes = Math.max(0, Math.round(startsAt.diff(now, 'minutes').minutes));
 
@@ -203,38 +185,94 @@ function buildForecastViewModel(
   };
 }
 
-function usageForWindowStart(matrix: HourAccumulator[][], startedAt: DateTime): number {
-  const bucket = matrix[startedAt.weekday - 1][startedAt.hour];
-  const total = bucket.peak + bucket.offPeak;
-  return total === 0 ? 0 : Math.round((bucket.peak / total) * 100);
+function getPlatformTone(snapshot: PromotionSnapshotResponse): 'normal' | 'warning' | 'critical' {
+  if (!snapshot.statusPage) {
+    return 'warning';
+  }
+
+  if (
+    snapshot.statusPage.indicator === 'critical' ||
+    snapshot.statusPage.indicator === 'major'
+  ) {
+    return 'critical';
+  }
+
+  if (snapshot.statusPage.activeIncidents.length > 0 || snapshot.statusPage.indicator !== 'none') {
+    return 'warning';
+  }
+
+  return 'normal';
 }
 
-function getPatternTone(usage: number): 'peak' | 'moderate' | 'off_peak' {
-  if (usage >= 60) {
-    return 'peak';
+function buildNotices(snapshot: PromotionSnapshotResponse): DashboardNotice[] {
+  const notices: DashboardNotice[] = [];
+
+  if (snapshot.manualOverride) {
+    notices.push({
+      id: 'manual-override',
+      title: 'Manual Advisory',
+      detail: snapshot.manualOverride.source
+        ? `${snapshot.manualOverride.message} Source: ${snapshot.manualOverride.source}.`
+        : snapshot.manualOverride.message,
+      tone: snapshot.manualOverride.severity,
+    });
   }
 
-  if (usage >= 35) {
-    return 'moderate';
+  if (snapshot.statusPage?.activeIncidents.length) {
+    const incidentNames = snapshot.statusPage.activeIncidents
+      .slice(0, 2)
+      .map((incident) => incident.name)
+      .join(' | ');
+
+    notices.push({
+      id: 'status-page-incidents',
+      title: 'Active Status Incident',
+      detail:
+        snapshot.statusPage.activeIncidents.length > 2
+          ? `${incidentNames} | +${snapshot.statusPage.activeIncidents.length - 2} more unresolved incident(s).`
+          : incidentNames,
+      tone: getPlatformTone(snapshot) === 'critical' ? 'critical' : 'warning',
+    });
   }
 
-  return 'off_peak';
+  if (snapshot.parseWarnings.length > 0) {
+    notices.push({
+      id: 'parse-warnings',
+      title: 'Parser Warning',
+      detail:
+        snapshot.parseWarnings.length === 1
+          ? snapshot.parseWarnings[0].message
+          : `${snapshot.parseWarnings.length} article warnings detected. ${snapshot.parseWarnings[0].message}`,
+      tone: 'warning',
+    });
+  }
+
+  return notices;
 }
 
-function getPhaseLabel(phase: PromotionPhase): string {
-  return phase === 'off_peak' ? 'Off-Peak' : 'Peak';
-}
+function buildCampaignHistory(
+  snapshot: PromotionSnapshotResponse,
+  zone: string,
+  nowUtc: DateTime,
+): CampaignSummary[] {
+  return [...snapshot.campaigns]
+    .sort((a, b) => b.startsAtUtc.localeCompare(a.startsAtUtc))
+    .map((campaign) => {
+      const start = DateTime.fromISO(campaign.startsAtUtc, { zone: 'utc' }).setZone(zone);
+      const end = DateTime.fromISO(campaign.endsAtUtc, { zone: 'utc' }).setZone(zone);
+      const campaignStart = DateTime.fromISO(campaign.startsAtUtc, { zone: 'utc' });
+      const campaignEnd = DateTime.fromISO(campaign.endsAtUtc, { zone: 'utc' });
+      const isActive = nowUtc >= campaignStart && nowUtc <= campaignEnd;
 
-function getPatternLabel(tone: 'peak' | 'moderate' | 'off_peak'): string {
-  if (tone === 'peak') {
-    return 'Peak-leaning';
-  }
-
-  if (tone === 'moderate') {
-    return 'Balanced';
-  }
-
-  return 'Off-peak-leaning';
+      return {
+        id: campaign.id,
+        title: campaign.title.replace(/^Claude\s+/i, ''),
+        dateRange: `${start.toFormat('LLL dd, yyyy')} - ${end.toFormat('LLL dd, yyyy')}`,
+        scheduleSummary: campaign.scheduleSummary,
+        sourceUrl: campaign.sourceUrl,
+        isActive,
+      };
+    });
 }
 
 export function buildDashboardModel(
@@ -244,67 +282,37 @@ export function buildDashboardModel(
 ): DashboardViewModel {
   const now = DateTime.fromMillis(nowMillis).setZone(zone);
   const nowUtc = now.toUTC();
-  const patternMatrix = buildHourlyMatrix(snapshot.windows, zone);
-  const recentDays = buildRangeBuckets(snapshot.windows, zone, now.startOf('day').minus({ days: 6 }), 7);
-  const todayUsage = buildUsageHours(recentDays[recentDays.length - 1].buckets);
-  const weeklyHeatmap = buildHeatmap(recentDays);
-  const currentBucket = patternMatrix[now.weekday - 1][now.hour];
-  const currentTotal = currentBucket.peak + currentBucket.offPeak;
-  const currentUsage = currentTotal === 0 ? 0 : Math.round((currentBucket.peak / currentTotal) * 100);
-  const inferredCurrentPhaseTone: 'peak' | 'off_peak' = currentUsage >= 60 ? 'peak' : 'off_peak';
-  const patternTone = getPatternTone(currentUsage);
+
   const activeOfficialWindow = snapshot.windows.find((window) => {
     const startedAtUtc = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' });
     const endedAtUtc = DateTime.fromISO(window.endedAtUtc, { zone: 'utc' });
     return nowUtc >= startedAtUtc && nowUtc < endedAtUtc;
   });
 
-  const currentStatus = activeOfficialWindow
-    ? {
-        officialLabel: `${getPhaseLabel(activeOfficialWindow.phase)} Window`,
-        officialTone: activeOfficialWindow.phase,
-        officialDetail: 'Official promotion live now',
-        currentPhaseLabel: activeOfficialWindow.phase === 'off_peak' ? 'Yes, Off-Peak Now' : 'No, Peak Now',
-        currentPhaseTone: activeOfficialWindow.phase,
-        currentPhaseDetail: 'Taken from the current official published window',
-        patternLabel: `${getPatternLabel(patternTone)} pattern`,
-        patternUsage: currentUsage,
-        patternTone,
-      }
-    : {
-        officialLabel: 'No Promotion Live',
-        officialTone: 'inactive' as const,
-        officialDetail: 'Current signal below is historical, not live Claude telemetry',
-        currentPhaseLabel: currentUsage >= 60 ? 'No, Likely Peak Now' : 'Yes, Likely Off-Peak Now',
-        currentPhaseTone: inferredCurrentPhaseTone,
-        currentPhaseDetail: 'Estimated from the current historical day-of-week and hour pattern',
-        patternLabel: `${getPatternLabel(patternTone)} pattern`,
-        patternUsage: currentUsage,
-        patternTone,
-      };
+  const platformTone = getPlatformTone(snapshot);
+  const platformDetail = !snapshot.statusPage
+    ? 'Could not reach status.claude.ai during the latest backend refresh.'
+    : snapshot.statusPage.activeIncidents.length > 0
+      ? snapshot.statusPage.activeIncidents
+          .slice(0, 2)
+          .map((incident) => incident.name)
+          .join(' | ')
+      : `Live feed: ${snapshot.statusPage.url}`;
 
-  const history = [...snapshot.windows]
-    .sort((left, right) => right.startedAtUtc.localeCompare(left.startedAtUtc))
-    .map((window) => {
-      const startedAt = DateTime.fromISO(window.startedAtUtc, { zone: 'utc' }).setZone(zone);
-      const endedAt = DateTime.fromISO(window.endedAtUtc, { zone: 'utc' }).setZone(zone);
-      const crossesDay = !startedAt.hasSame(endedAt, 'day');
+  let phaseLabel: string;
+  let phaseTone: 'peak' | 'off_peak';
+  let phaseSource: string;
 
-      return {
-        id: window.id,
-        date: startedAt.toFormat('LLL dd, yyyy'),
-        timeRange: crossesDay
-          ? `${startedAt.toFormat('HH:mm')} -> ${endedAt.toFormat('ccc HH:mm')}`
-          : `${startedAt.toFormat('HH:mm')} -> ${endedAt.toFormat('HH:mm')}`,
-        day: startedAt.toFormat('ccc'),
-        usage: usageForWindowStart(patternMatrix, startedAt),
-        duration: formatDuration(Math.round(endedAt.diff(startedAt, 'minutes').minutes)),
-        reason: window.label,
-        phase: window.phase,
-        phaseLabel: getPhaseLabel(window.phase),
-        sourceUrl: window.sourceUrl,
-      };
-    });
+  if (activeOfficialWindow) {
+    phaseTone = activeOfficialWindow.phase;
+    phaseLabel = activeOfficialWindow.phase === 'off_peak' ? 'Off-Peak' : 'Peak';
+    phaseSource = 'Official promotion window';
+  } else {
+    const isBaselinePeak = isPermanentWeekdayPeakUtc(nowUtc);
+    phaseTone = isBaselinePeak ? 'peak' : 'off_peak';
+    phaseLabel = isBaselinePeak ? 'Peak (Baseline)' : 'Off-Peak (Baseline)';
+    phaseSource = '5 AM - 11 AM PT weekday baseline';
+  }
 
   return {
     sourceLabel: `${snapshot.sourceLabel} | refreshed ${DateTime.fromISO(snapshot.fetchedAtUtc, {
@@ -318,10 +326,18 @@ export function buildDashboardModel(
       label: campaign.title.replace(/^Claude\s+/i, ''),
     })),
     timezone: zone,
-    todayUsage,
-    weeklyHeatmap,
+    notices: buildNotices(snapshot),
+    baselineSchedule: buildBaselineSchedule(),
+    bestTimes: buildBestTimes(nowUtc, zone, snapshot),
     forecast: buildForecastViewModel(snapshot, zone, now),
-    history,
-    currentStatus,
+    campaignHistory: buildCampaignHistory(snapshot, zone, nowUtc),
+    currentStatus: {
+      phaseLabel,
+      phaseTone,
+      phaseSource,
+      platformLabel: snapshot.statusPage?.description ?? 'Status Feed Unavailable',
+      platformTone,
+      platformDetail,
+    },
   };
 }

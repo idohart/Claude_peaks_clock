@@ -1,6 +1,6 @@
 # Project: Claude Promotion Clock
 # Started: 2026-04-02
-# Sessions since last maintenance: 6
+# Sessions since last maintenance: 0
 
 ## Session 1
 - Built project harness: docs, feature list, init/check scripts, PowerShell wrappers, app scaffold
@@ -76,3 +76,12 @@
 - Added docs/data-and-forecasting.md documenting the exact fetch pipeline, parser shapes, window expansion rules, campaign estimate, and near-term hour scoring logic
 - Linked the new data-and-forecasting doc from docs/MAP.md
 - Issues: there is still an unrelated untracked `index.zip` in the repo root that was not touched in this session
+
+## Session 13
+- Maintenance: refreshed docs and feature tracking while re-verifying the current snapshot, dashboard model, and production build after another multi-file forecasting change
+- Implemented: permanent weekday peak baseline support, active Claude status feed ingestion, manual operator overrides from `server/manualSignals.json`, parser warnings, shorter snapshot refresh/cache windows, and a sample-size penalty for long-range campaign confidence
+- Files changed: `server/promotionWebData.ts`, `server/manualSignals.json`, `src/types/promotion.ts`, `src/services/dashboardModel.ts`, `src/app/App.tsx`, `src/app/components/ClockDisplay.tsx`, `src/app/components/StatusNotices.tsx`, `docs/architecture.md`, `docs/data-and-forecasting.md`, `feature_list.json`, `netlify.toml`
+- Tested: `npm run check`, direct `getPromotionSnapshot()` inspection for `statusPage`, `manualOverride`, `parseWarnings`, and direct `buildDashboardModel()` inspection confirming `Off-Peak Now` now follows the permanent weekday baseline in the browser
+- Harness improvements: documented the new status/manual-signal data sources and created a checked-in manual override file for fast operator updates
+- Next: if Anthropic publishes a new wording variant, extend the parser tests or add a dedicated fixture set so regex drift is caught before deploy
+- Issues: `server/manualSignals.json` is bundled for Netlify and defaults to disabled; operators need to edit that file when they want a manual notice to appear

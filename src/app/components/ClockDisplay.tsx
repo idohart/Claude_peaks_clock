@@ -12,19 +12,13 @@ export function ClockDisplay({ currentTime, status, sourceLabel, timezone }: Clo
   const minutes = currentTime.getMinutes().toString().padStart(2, '0');
   const seconds = currentTime.getSeconds().toString().padStart(2, '0');
 
-  const officialColor =
-    status.officialTone === 'peak'
+  const phaseColor = status.phaseTone === 'peak' ? '#e05252' : '#4ade80';
+  const platformColor =
+    status.platformTone === 'critical'
       ? '#e05252'
-      : status.officialTone === 'off_peak'
-        ? '#4ade80'
-        : '#6b6b80';
-  const patternColor =
-    status.patternTone === 'peak'
-      ? '#e05252'
-      : status.patternTone === 'moderate'
-        ? '#c4a1ff'
+      : status.platformTone === 'warning'
+        ? '#f59e0b'
         : '#4ade80';
-  const currentPhaseColor = status.currentPhaseTone === 'peak' ? '#e05252' : '#4ade80';
 
   return (
     <div className="h-full rounded-lg bg-[#111118] border border-white/[0.06] p-6 flex flex-col justify-between">
@@ -56,49 +50,43 @@ export function ClockDisplay({ currentTime, status, sourceLabel, timezone }: Clo
         <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-3">
           <div className="flex flex-col items-start gap-2">
             <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
-              Official Status
+              Right Now
             </span>
             <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2 mt-1">
+              <span className="relative flex h-2 w-2 mt-0.5">
                 <span
                   className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-                  style={{ backgroundColor: officialColor }}
+                  style={{ backgroundColor: phaseColor }}
                 />
                 <span
                   className="relative inline-flex rounded-full h-2 w-2"
-                  style={{ backgroundColor: officialColor }}
+                  style={{ backgroundColor: phaseColor }}
                 />
               </span>
               <div>
-                <p className="text-xs font-['JetBrains_Mono']" style={{ color: officialColor }}>
-                  {status.officialLabel}
+                <p className="text-sm font-['JetBrains_Mono'] font-medium" style={{ color: phaseColor }}>
+                  {status.phaseLabel}
                 </p>
-                <p className="text-[11px] text-[#6b6b80]">{status.officialDetail}</p>
+                <p className="text-[11px] text-[#6b6b80]">{status.phaseSource}</p>
               </div>
             </div>
           </div>
 
           <div className="flex flex-col items-start gap-2">
             <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
-              Off-Peak Now
+              Platform Health
             </span>
-            <div>
-              <p className="text-xs font-['JetBrains_Mono']" style={{ color: currentPhaseColor }}>
-                {status.currentPhaseLabel}
-              </p>
-              <p className="text-[11px] text-[#6b6b80]">{status.currentPhaseDetail}</p>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-start gap-2">
-            <span className="text-[#6b6b80] text-xs font-['JetBrains_Mono'] uppercase tracking-widest">
-              Historical Pattern
-            </span>
-            <div>
-              <p className="text-xs font-['JetBrains_Mono']" style={{ color: patternColor }}>
-                {status.patternLabel} ({status.patternUsage}%)
-              </p>
-              <p className="text-[11px] text-[#6b6b80]">Used for inference when no official window is live</p>
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-flex rounded-full h-2 w-2"
+                style={{ backgroundColor: platformColor }}
+              />
+              <div>
+                <p className="text-xs font-['JetBrains_Mono']" style={{ color: platformColor }}>
+                  {status.platformLabel}
+                </p>
+                <p className="text-[11px] text-[#6b6b80]">{status.platformDetail}</p>
+              </div>
             </div>
           </div>
         </div>
