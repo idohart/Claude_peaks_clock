@@ -224,6 +224,7 @@ export function buildDashboardModel(
       platformLabel: snapshot.statusPage?.description ?? 'Status Unavailable',
       platformTone,
       platformDetail,
+      latencyMs: snapshot.statusPage?.latencyMs ?? null,
     },
   };
 }

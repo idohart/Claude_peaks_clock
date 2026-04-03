@@ -581,6 +581,7 @@ function parsePromotionArticle(
 
 async function fetchStatusPageSummary(): Promise<ClaudeStatusSummary | null> {
   try {
+    const start = Date.now();
     const [statusResponse, incidentsResponse] = await Promise.all([
       fetchJson<{
         page: { url?: string };
@@ -597,11 +598,13 @@ async function fetchStatusPageSummary(): Promise<ClaudeStatusSummary | null> {
         }>;
       }>(STATUS_PAGE_INCIDENTS_URL),
     ]);
+    const latencyMs = Date.now() - start;
 
     return {
       indicator: statusResponse.status.indicator,
       description: statusResponse.status.description,
       url: statusResponse.page.url ?? STATUS_PAGE_BASE_URL,
+      latencyMs,
       activeIncidents: incidentsResponse.incidents.map((incident) => ({
         id: incident.id,
         name: incident.name,
@@ -1232,3 +1235,11 @@ export async function getPromotionSnapshot(): Promise<PromotionSnapshotResponse>
 
   return pendingRefresh;
 }
+
+export const _testExports = {
+  extractPromotionUrls,
+  extractUtcCampaignRange,
+  extractPtCampaignRange,
+  extractWeekdayPeakBand,
+  extractArticleText,
+};

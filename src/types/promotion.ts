@@ -75,6 +75,7 @@ export interface ClaudeStatusSummary {
   indicator: string;
   description: string;
   url: string;
+  latencyMs: number;
   activeIncidents: ClaudeStatusIncident[];
 }
 
@@ -137,6 +138,7 @@ export interface ClockStatus {
   platformLabel: string;
   platformTone: 'normal' | 'warning' | 'critical';
   platformDetail: string;
+  latencyMs: number | null;
 }
 
 export interface HourlyScoreLocal {

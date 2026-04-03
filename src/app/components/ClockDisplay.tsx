@@ -52,9 +52,16 @@ export function ClockDisplay({ currentTime, status, timezone }: ClockDisplayProp
           <span className="text-xs font-['JetBrains_Mono']" style={{ color: platformColor }}>
             {status.platformLabel}
           </span>
-          {status.platformDetail ? (
-            <span className="text-[#8b8ba0] text-[11px] ml-auto truncate max-w-[200px]">{status.platformDetail}</span>
-          ) : null}
+          <span className="text-[#8b8ba0] text-[11px] ml-auto flex items-center gap-2">
+            {status.latencyMs !== null ? (
+              <span className="font-['JetBrains_Mono']" style={{ color: status.latencyMs < 500 ? '#4ade80' : status.latencyMs < 1500 ? '#f59e0b' : '#e05252' }}>
+                {status.latencyMs}ms
+              </span>
+            ) : null}
+            {status.platformDetail ? (
+              <span className="truncate max-w-[160px]">{status.platformDetail}</span>
+            ) : null}
+          </span>
         </div>
       </div>
     </div>
