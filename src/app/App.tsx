@@ -50,12 +50,9 @@ export default function App() {
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="pt-6 pb-2">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-[#e2e2e8] font-['JetBrains_Mono'] text-2xl md:text-3xl tracking-tight">
-                Claude Code <span className="text-[#c4a1ff]">Clock</span>
-              </h1>
-              <p className="text-[#8b8ba0] text-sm mt-1">Peak/off-peak status and demand forecast</p>
-            </div>
+            <h1 className="text-[#e2e2e8] font-['JetBrains_Mono'] text-xl md:text-2xl tracking-tight">
+              Claude Code <span className="text-[#c4a1ff]">Clock</span>
+            </h1>
             <div className="flex items-center gap-3">
               {dashboard ? (
                 <>
