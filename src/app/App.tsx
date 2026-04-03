@@ -4,7 +4,6 @@ import { buildDashboardModel } from '../services/dashboardModel';
 import type { PromotionSnapshotResponse } from '../types/promotion';
 import { BaselineSchedule } from './components/BaselineSchedule';
 import { BestTimeCard } from './components/BestTimeCard';
-import { CapacityProbe } from './components/CapacityProbe';
 import { ClockDisplay } from './components/ClockDisplay';
 import { NotificationToggle } from './components/NotificationToggle';
 import { PredictionPanel } from './components/PredictionPanel';
@@ -78,8 +77,7 @@ export default function App() {
                 <span className="text-[#c4a1ff]">Promotion Clock</span>
               </h1>
               <p className="text-[#6b6b80] mt-3 max-w-lg">
-                Real-time peak/off-peak status, best usage windows, and optional API capacity
-                monitoring — localized to your timezone.
+                Real-time peak/off-peak status and best usage windows — localized to your timezone.
               </p>
             </div>
             {dashboard ? <NotificationToggle status={dashboard.currentStatus} /> : null}
@@ -106,15 +104,13 @@ export default function App() {
             </div>
 
             <BestTimeCard recommendations={dashboard.bestTimes} />
-            <CapacityProbe />
             <BaselineSchedule data={dashboard.baselineSchedule} timezone={dashboard.timezone} />
             <PromotionHistory campaigns={dashboard.campaignHistory} />
 
             <footer className="border-t border-white/5 pt-6 pb-8">
               <p className="text-[#6b6b80] text-sm max-w-xl">
                 Peak/off-peak baseline from Anthropic&apos;s published schedule. Campaign data fetched
-                from official Claude Help Center promotion pages. API capacity probed via rate-limit
-                headers on your own key.
+                from official Claude Help Center promotion pages.
               </p>
             </footer>
           </>
